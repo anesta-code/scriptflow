@@ -26,16 +26,17 @@ const FIELD_GROUPS = [
     ['project_name', "Project's Name", 'required'], ['client', 'Client']
   ]},
   { title: 'Workflow and questionnaire', fields: [
-    ['status', 'Status', 'status'], ['questions', 'Questions', 'number'], ['level', 'Level'],
-    ['complexity_as_spm', 'Complexity - As SPM'], ['qnr_received_on', 'QNR received on', 'date'],
-    ['launch_date', 'Launch date', 'date']
+    ['status', 'Status', 'status'], ['questions', 'Questions', 'number'], ['loi', 'LOI', 'decimal'],
+    ['level', 'Level'], ['complexity_as_spm', 'Complexity - As SPM'],
+    ['qnr_received_on', 'QNR received on', 'date'], ['date_sent_to_qa', 'Date sent to QA', 'date'],
+    ['date_sent_to_pm', 'Date sent to PM', 'date'], ['launch_date', 'Launch date', 'date']
   ]},
   { title: 'Scripting and testing', fields: [
-    ['test_link', 'Test link', 'url'], ['scripting_time_hours', 'Scripting time (hours)', 'decimal'],
-    ['changes', 'Changes', 'textarea'], ['testing', 'Testing', 'textarea']
+    ['test_link', 'Test link', 'url'],
+    ['changes', 'Changes notes', 'textarea'], ['testing', 'Testing notes', 'textarea']
   ]},
   { title: 'Time and financials', fields: [
-    ['mailing_time_hours', 'Mailing time (hours)', 'decimal'], ['hours_worked', 'Hours worked', 'decimal'],
+    ['budget', 'Budget', 'money'], ['hours_worked', 'Hours worked', 'decimal'],
     ['hours_commissioned', 'Hours commissioned', 'decimal'], ['price_scripting', 'Price scripting', 'money']
   ]},
   { title: 'Commissioning and tools', fields: [
@@ -45,18 +46,22 @@ const FIELD_GROUPS = [
   ]},
   { title: 'Additional notes', fields: [['notes', 'Internal notes', 'textarea']] }
 ]
+
 const EXCEL_FIELDS = [
   ['sw', 'SW'], ['project_number', "Project's number"], ['spm_project_number', 'SPM Project Number'],
-  ['project_name', "Project's Name"], ['status', 'Status'], ['questions', 'Questions'], ['level', 'Level'],
-  ['qnr_received_on', 'QNR received on'], ['launch_date', 'Launch date'], ['main_pm_name', 'PM'],
-  ['main_tester_name', 'Tester'], ['test_link', 'Test link'], ['scripting_time_hours', 'Scripting time (Hrs)'],
-  ['changes', 'Changes'], ['testing', 'Testing'], ['mailing_time_hours', 'Mailing time'],
-  ['hours_worked', 'Hours worked'], ['commissioning_country', 'Commissioning country'], ['overlay', 'Overlay'],
-  ['price_scripting', 'Price Scripting'], ['hours_commissioned', 'Hours Commissioned'], ['client', 'Client'],
+  ['project_name', "Project's Name"], ['main_tester_name', 'Tester'], ['main_pm_name', 'PM'],
+  ['status', 'Status'], ['questions', 'Questions'], ['loi', 'LOI'], ['level', 'Level'],
+  ['qnr_received_on', 'QNR received on'], ['date_sent_to_qa', 'Date sent to QA'],
+  ['date_sent_to_pm', 'Date sent to PM'], ['launch_date', 'Launch date'],
+  ['test_link_scripting_time', 'Test link (scripting time per Hrs)'],
+  ['changes_time_hours', 'Changes time (hours)'], ['testing_time_hours', 'Testing time (hours)'],
+  ['mailing_time_hours', 'Mailing time'], ['total_estimated_hours', 'Total estimated hours'],
+  ['hours_worked', 'Hours worked'], ['commissioning_country', 'Commissioning country'],
+  ['overlay', 'Overlay'], ['price_scripting', 'Price Scripting'],
+  ['hours_commissioned', 'Hours Commissioned'], ['client', 'Client'],
   ['bari_oe_checks', 'BARI - OE CHECKS'], ['bari_moderations', 'BARI - MODERATIONS'],
-  ['bari_scripting', 'BARI SCRIPTING'], ['bsurvey', 'BSurvey'], ['complexity_as_spm', 'Complexity - As SPM'],
-  ['main_scripter_name', 'Main Scripter'], ['backup_pm_name', 'Backup PM'],
-  ['backup_scripter_name', 'Backup Scripter'], ['backup_tester_name', 'Backup Tester']
+  ['bari_scripting', 'BARI SCRIPTING'], ['bsurvey', 'BSurvey'],
+  ['complexity_as_spm', 'Complexity - As SPM']
 ]
 
 function pretty(value = '') {
@@ -187,9 +192,18 @@ function Jobs({ profile }) {
   }),[jobs,query,status])
   function exportExcel() {
     const rows = filtered.map(job => Object.fromEntries(EXCEL_FIELDS.map(([key,label])=>{
+      if (key === 'test_link_scripting_time') {
+        const parts = []
+        if (job.test_link) parts.push(job.test_link)
+        if (job.scripting_time_hours !== null && job.scripting_time_hours !== undefined && job.scripting_time_hours !== '') {
+          parts.push(`${job.scripting_time_hours} hrs`)
+        }
+        return [label, parts.join(' | ')]
+      }
       if (key.endsWith('_name')) {
         const idKey = key.replace('_name','_id')
-        return [label, displayName(peopleById[job[idKey]]) === 'Unassigned' ? '' : displayName(peopleById[job[idKey]])]
+        const name = displayName(peopleById[job[idKey]])
+        return [label, name === 'Unassigned' ? '' : name]
       }
       return [label, key==='status' ? (STATUS_LABEL[job[key]] || job[key] || '') : (job[key] ?? '')]
     })))
@@ -201,12 +215,52 @@ function Jobs({ profile }) {
   }
   async function saveJob(form) {
     const fd = new FormData(form), payload = {}
-    for (const [key,value] of fd.entries()) {
-      if (['questions','scripting_time_hours','mailing_time_hours','hours_worked','price_scripting','hours_commissioned'].includes(key)) payload[key] = value.trim()==='' ? null : Number(value)
-      else payload[key] = value.trim()==='' ? null : value.trim()
+    const numericFields = [
+      'questions', 'loi', 'budget', 'scripting_time_hours',
+      'changes_time_hours', 'testing_time_hours', 'mailing_time_hours',
+      'total_estimated_hours', 'hours_worked', 'price_scripting',
+      'hours_commissioned'
+    ]
+
+    for (const [key, value] of fd.entries()) {
+      if (numericFields.includes(key)) {
+        payload[key] = value.trim() === '' ? null : Number(value)
+      } else {
+        payload[key] = value.trim() === '' ? null : value.trim()
+      }
     }
-    if (!payload.project_name) { setError("Project's Name is required."); return }
-    if (payload.questions !== null && payload.questions !== undefined && (!Number.isInteger(payload.questions) || payload.questions < 0)) { setError('Questions must be a whole number.'); return }
+
+    if (!payload.project_name) {
+      setError("Project's Name is required.")
+      return
+    }
+
+    if (payload.questions !== null && payload.questions !== undefined &&
+        (!Number.isInteger(payload.questions) || payload.questions < 0)) {
+      setError('Questions must be a whole number.')
+      return
+    }
+
+    const timeFields = [
+      'scripting_time_hours', 'changes_time_hours',
+      'testing_time_hours', 'mailing_time_hours'
+    ]
+
+    for (const key of timeFields) {
+      if (payload[key] !== null &&
+          (!Number.isFinite(payload[key]) || payload[key] < 0)) {
+        setError('Estimated time values must be valid non-negative numbers.')
+        return
+      }
+    }
+
+    if (timeFields.some(key => payload[key] !== null)) {
+      payload.total_estimated_hours = timeFields.reduce(
+        (total, key) => total + (payload[key] || 0), 0
+      )
+    } else {
+      payload.total_estimated_hours = null
+    }
     const {data:userData} = await supabase.auth.getUser()
     setError('')
     let result
@@ -247,16 +301,141 @@ function Jobs({ profile }) {
 function AssignmentCell({main,backup,people}) { return <div className="assignment-cell"><span>{displayName(people[main])}</span><small>Backup: {displayName(people[backup])}</small></div> }
 function JobModal({job,people,onClose,onSubmit}) {
   const [saving,setSaving] = useState(false)
-  async function submit(e) { e.preventDefault(); setSaving(true); await onSubmit(e.currentTarget); setSaving(false) }
-  return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section className="job-modal">
-    <header className="modal-header"><div><p className="eyebrow">JOB DETAILS</p><h2>{job?'Edit job':'Create a job'}</h2><p className="muted small">Enter the information available now. You can complete the remaining fields later.</p></div><button className="icon-button" type="button" onClick={onClose}><X/></button></header>
-    <form onSubmit={submit} className="job-form">
-      {FIELD_GROUPS.map(group=><div className="form-section" key={group.title}><h3>{group.title}</h3><div className="form-grid">{group.fields.map(([key,label,type])=><Field key={key} name={key} label={label} type={type} value={job?.[key]}/>)}</div></div>)}
-      <div className="form-section"><h3>Team assignments</h3><p className="muted small">Choose one primary and one backup person for each responsibility.</p><div className="assignment-grid">{ROLE_ASSIGNMENTS.map(role=><div className="assignment-panel" key={role.title}><h4>{role.title}</h4><label>Primary<select name={role.primary} defaultValue={job?.[role.primary]||''}><option value="">Not assigned</option>{people.map(p=><option key={p.id} value={p.id}>{displayName(p)}</option>)}</select></label><label>Backup<select name={role.backup} defaultValue={job?.[role.backup]||''}><option value="">Not assigned</option>{people.map(p=><option key={p.id} value={p.id}>{displayName(p)}</option>)}</select></label></div>)}</div></div>
-      <div className="modal-footer"><button className="secondary-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving}>{saving?'Saving…':job?'Save changes':'Create job'}</button></div>
-    </form>
-  </section></div>
+
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true)
+    await onSubmit(e.currentTarget)
+    setSaving(false)
+  }
+
+  return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <section className="job-modal">
+      <header className="modal-header">
+        <div>
+          <p className="eyebrow">JOB DETAILS</p>
+          <h2>{job?'Edit job':'Create a job'}</h2>
+          <p className="muted small">Enter the information available now. You can complete the remaining fields later.</p>
+        </div>
+        <button className="icon-button" type="button" onClick={onClose}><X/></button>
+      </header>
+
+      <form onSubmit={submit} className="job-form">
+        {FIELD_GROUPS.slice(0, 3).map(group =>
+          <div className="form-section" key={group.title}>
+            <h3>{group.title}</h3>
+            <div className="form-grid">
+              {group.fields.map(([key,label,type]) =>
+                <Field key={key} name={key} label={label} type={type} value={job?.[key]}/>
+              )}
+            </div>
+          </div>
+        )}
+
+        <EstimatedTimeSection job={job}/>
+
+        {FIELD_GROUPS.slice(3).map(group =>
+          <div className="form-section" key={group.title}>
+            <h3>{group.title}</h3>
+            <div className="form-grid">
+              {group.fields.map(([key,label,type]) =>
+                <Field key={key} name={key} label={label} type={type} value={job?.[key]}/>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="form-section">
+          <h3>Team assignments</h3>
+          <p className="muted small">Choose one primary and one backup person for each responsibility.</p>
+          <div className="assignment-grid">
+            {ROLE_ASSIGNMENTS.map(role =>
+              <div className="assignment-panel" key={role.title}>
+                <h4>{role.title}</h4>
+                <label>Primary
+                  <select name={role.primary} defaultValue={job?.[role.primary]||''}>
+                    <option value="">Not assigned</option>
+                    {people.map(p=><option key={p.id} value={p.id}>{displayName(p)}</option>)}
+                  </select>
+                </label>
+                <label>Backup
+                  <select name={role.backup} defaultValue={job?.[role.backup]||''}>
+                    <option value="">Not assigned</option>
+                    {people.map(p=><option key={p.id} value={p.id}>{displayName(p)}</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-button" disabled={saving}>
+            {saving?'Saving…':job?'Save changes':'Create job'}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
 }
+
+function EstimatedTimeSection({job}) {
+  const timeFields = [
+    ['scripting_time_hours', 'Scripting time (hours)'],
+    ['changes_time_hours', 'Changes time (hours)'],
+    ['testing_time_hours', 'Testing time (hours)'],
+    ['mailing_time_hours', 'Mailing time (hours)']
+  ]
+
+  const [times, setTimes] = useState(() => ({
+    scripting_time_hours: job?.scripting_time_hours ?? '',
+    changes_time_hours: job?.changes_time_hours ?? '',
+    testing_time_hours: job?.testing_time_hours ?? '',
+    mailing_time_hours: job?.mailing_time_hours ?? ''
+  }))
+
+  const hasTime = Object.values(times).some(value => value !== '')
+  const total = hasTime
+    ? timeFields.reduce((sum, [key]) => sum + (Number(times[key]) || 0), 0)
+    : ''
+
+  function updateTime(key, value) {
+    setTimes(previous => ({...previous, [key]: value}))
+  }
+
+  return <div className="form-section">
+    <h3>Estimated time</h3>
+    <p className="muted small">Enter the estimated hours for each activity. The total is calculated automatically.</p>
+    <div className="form-grid">
+      {timeFields.map(([key,label]) =>
+        <label key={key}>
+          {label}
+          <input
+            name={key}
+            type="number"
+            min="0"
+            step="0.25"
+            value={times[key]}
+            onChange={e=>updateTime(key,e.target.value)}
+            placeholder="0"
+          />
+        </label>
+      )}
+      <label>
+        Total estimated hours
+        <input
+          type="number"
+          value={total === '' ? '' : total.toFixed(2)}
+          readOnly
+          aria-readonly="true"
+        />
+      </label>
+      <input type="hidden" name="total_estimated_hours" value={total === '' ? '' : total}/>
+    </div>
+  </div>
+}
+
 function Field({name,label,type,value}) {
   const val = value ?? ''
   if (type==='status') return <label>{label}<select name={name} defaultValue={val || 'new'}>{STATUSES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
