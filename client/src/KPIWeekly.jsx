@@ -41,7 +41,8 @@ const EXCEL_HEADERS = [
   'BARI - MODERATIONS',
   'BARI SCRIPTING',
   'BSurvey',
-  'Complexity - As SPM'
+  'Complexity - As SPM',
+  '__ScriptFlow_ID'
 ]
 
 const INITIAL_FORM = {
@@ -176,7 +177,8 @@ function buildExcelRow(record) {
     'BARI - MODERATIONS': record.bariModerations,
     'BARI SCRIPTING': record.bariScripting,
     'BSurvey': record.bsurvey,
-    'Complexity - As SPM': record.complexityAsSpm
+    'Complexity - As SPM': record.complexityAsSpm,
+    '__ScriptFlow_ID': ''
   }
 }
 
