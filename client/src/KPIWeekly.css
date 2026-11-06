@@ -15,7 +15,7 @@
 .kpi-topbar h2{font:700 17px Manrope;margin:4px 0 0}
 .kpi-topbar .kpi-eyebrow{font-size:9px}
 .kpi-preview-label{font-size:11px;color:#6e7890;background:#f5f7fb;border:1px solid #e7ebf2;padding:7px 10px;border-radius:20px}
-.kpi-preview-label span{background:#e5a33a}
+.kpi-preview-label span{background:#e5a33a}.kpi-preview-label.connected span{background:#25b982}
 .kpi-content{max-width:1600px;margin:auto;padding:30px 36px 35px}
 .kpi-page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:21px}
 .kpi-page-heading h1{font:800 27px Manrope;margin:5px 0 4px;letter-spacing:-.8px}
@@ -35,7 +35,7 @@
 .kpi-stat-card small{display:block;color:var(--kpi-muted);font-size:10px;margin-bottom:4px}
 .kpi-stat-card strong{font:800 19px Manrope}
 .kpi-stat-card .kpi-mode-value{font-size:15px}
-.kpi-notice{display:flex;align-items:center;gap:9px;background:#eaf8f0;border:1px solid #d4efdf;color:#21774e;border-radius:8px;padding:11px 13px;font-size:11px;margin-bottom:15px}
+.kpi-notice.error{background:#fff0f0;border-color:#ffdada;color:#b33c3c}.kpi-notice{display:flex;align-items:center;gap:9px;background:#eaf8f0;border:1px solid #d4efdf;color:#21774e;border-radius:8px;padding:11px 13px;font-size:11px;margin-bottom:15px}
 .kpi-form-layout{display:grid;grid-template-columns:minmax(0,1fr) 255px;gap:15px;align-items:start}
 .kpi-form-column{min-width:0}
 .kpi-section{background:#fff;border:1px solid var(--kpi-border);border-radius:11px;padding:17px 18px;margin-bottom:12px}
