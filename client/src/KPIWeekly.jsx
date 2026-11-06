@@ -224,6 +224,9 @@ export default function KPIWeekly() {
   const [notice, setNotice] = useState('')
 
   const totalEstimatedHours = useMemo(() => {
+    const hasTime = [form.scriptingTime, form.changesTime, form.testingTime, form.mailingTime]
+      .some(value => value !== '')
+    if (!hasTime) return ''
     return numberValue(form.scriptingTime) +
       numberValue(form.changesTime) +
       numberValue(form.testingTime) +
@@ -361,7 +364,7 @@ export default function KPIWeekly() {
                           </label>
                           <label className="kpi-field">
                             <span>Total estimated hours <small className="kpi-auto-label">AUTO-CALCULATED</small></span>
-                            <input type="number" value={totalEstimatedHours.toFixed(2)} readOnly />
+                            <input type="number" value={totalEstimatedHours === '' ? '' : totalEstimatedHours.toFixed(2)} readOnly />
                           </label>
                         </>
                       )}
