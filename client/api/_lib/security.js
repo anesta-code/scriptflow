@@ -45,9 +45,10 @@ export function readCookie(req, name) {
 export function signApiRequest(body, secret) {
   const timestamp = String(Math.floor(Date.now() / 1000))
   const nonce = crypto.randomBytes(18).toString('base64url')
-  const rawBody = JSON.stringify(body)
-  const canonical = timestamp + '\n' + nonce + '\n' + rawBody
+  const payload = body
+  const canonical = timestamp + '\n' + nonce + '\n' + JSON.stringify(payload)
   const signature = crypto.createHmac('sha256', secret).update(canonical).digest('hex')
+  const rawBody = JSON.stringify({ timestamp, nonce, payload, signature })
   return { rawBody, timestamp, nonce, signature }
 }
 
@@ -59,10 +60,7 @@ export async function callAppsScript(body) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'text/plain;charset=utf-8',
-      'X-SF-Timestamp': signed.timestamp,
-      'X-SF-Nonce': signed.nonce,
-      'X-SF-Signature': signed.signature
+      'Content-Type': 'text/plain;charset=utf-8'
     },
     body: signed.rawBody
   })
