@@ -44,7 +44,10 @@ The auth project's `AUTH_TOKEN_SECRET` must match the API project's `AUTH_TOKEN_
 Generate random secrets locally in PowerShell, then paste them directly into the relevant Script Properties and Vercel Preview environment variables. Do not commit them or send them in chat:
 
 ```powershell
--join ((48..57) + (65..90) + (97..122) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+$bytes = New-Object byte[] 48
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+[Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+','-').Replace('/','_')
 ```
 
 Generate separate values for API request signing, employee assertion signing, and Vercel session signing. The employee assertion secret is shared only between the two Apps Script projects.
