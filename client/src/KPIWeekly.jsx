@@ -326,8 +326,8 @@ export default function KPIWeekly() {
         <div className="kpi-nav-item active"><FileSpreadsheet size={17} /> KPI Weekly</div>
         <div className="kpi-sidebar-note">
           <span className="kpi-live-dot" />
-          Frontend preview mode
-          <small>Entries are temporary and are cleared when the page is refreshed.</small>
+          Google Sheets mode
+          <small>Successful submissions are written to the KPI weekly spreadsheet.</small>
         </div>
       </aside>
 
@@ -337,7 +337,7 @@ export default function KPIWeekly() {
             <span className="kpi-eyebrow">SCRIPTING OPERATIONS</span>
             <h2>Team reporting</h2>
           </div>
-          <span className="kpi-preview-label connected"><span /> Google Sheets connection</span>
+          <span className="kpi-preview-label connected"><span /> Google Sheets integration</span>
         </header>
 
         <div className="kpi-content">
@@ -360,10 +360,10 @@ export default function KPIWeekly() {
           <div className="kpi-stats">
             <div className="kpi-stat-card"><span className="kpi-stat-icon"><FileSpreadsheet size={18} /></span><div><small>Entries this session</small><strong>{submissions.length}</strong></div></div>
             <div className="kpi-stat-card"><span className="kpi-stat-icon hours"><Activity size={18} /></span><div><small>Estimated hours</small><strong>{submissions.reduce((sum, item) => sum + Number(item.totalEstimatedHours || 0), 0).toFixed(2)}</strong></div></div>
-            <div className="kpi-stat-card"><span className="kpi-stat-icon ready"><CheckCircle2 size={18} /></span><div><small>Mode</small><strong className="kpi-mode-value">Connected</strong></div></div>
+            <div className="kpi-stat-card"><span className="kpi-stat-icon ready"><CheckCircle2 size={18} /></span><div><small>Mode</small><strong className="kpi-mode-value">Sheet submission</strong></div></div>
           </div>
 
-          {notice && <div className="kpi-notice"><CheckCircle2 size={17} />{notice}</div>}
+          {notice && <div className={'kpi-notice ' + (notice.indexOf('Google Sheets save failed:') === 0 ? 'error' : '')}><CheckCircle2 size={17} />{notice}</div>}
 
           <form onSubmit={submitForm}>
             <div className="kpi-form-layout">
@@ -406,21 +406,21 @@ export default function KPIWeekly() {
               <aside className="kpi-help-card">
                 <div className="kpi-help-icon"><ClipboardList size={20} /></div>
                 <h3>About this form</h3>
-                <p>This form follows the KPI Weekly column headers you supplied.</p>
+                <p>This form follows the KPI Weekly column headers you supplied and writes mapped fields to the existing sheet.</p>
                 <ul>
                   <li>Project Name is required.</li>
                   <li>Total estimated hours are calculated from scripting, changes, testing and mailing time.</li>
                   <li>The test link and scripting time are combined into the existing spreadsheet column.</li>
-                  <li><strong>__ScriptFlow_ID</strong> is reserved for a future integration and is not shown here.</li>
+                  <li>A hidden <strong>__ScriptFlow_ID</strong> is used to identify each submitted record.</li>
                 </ul>
-                <div className="kpi-warning"><strong>Preview mode</strong><span>Entries are held in temporary browser memory only. Refreshing this page clears them. Nothing is sent to a spreadsheet.</span></div>
+                <div className="kpi-warning"><strong>Connection setup required</strong><span>The Vercel API and Apps Script deployment must both be configured before submissions can reach Google Sheets.</span></div>
               </aside>
             </div>
           </form>
 
           <section className="kpi-submissions">
             <div className="kpi-submissions-heading">
-              <div><h2>Session entries <span>{submissions.length}</span></h2><p>Entries added since this page was opened.</p></div>
+              <div><h2>Recent submissions <span>{submissions.length}</span></h2><p>Submissions made during this page session. The spreadsheet remains the permanent record.</p></div>
               <div className="kpi-submission-actions">
                 <div className="kpi-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search project or client..." /></div>
                 <button type="button" className="kpi-button secondary" onClick={clearSession} disabled={!submissions.length}>Clear session</button>
