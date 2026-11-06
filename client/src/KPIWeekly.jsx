@@ -224,6 +224,7 @@ export default function KPIWeekly() {
   const [submissions, setSubmissions] = useState([])
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   const totalEstimatedHours = useMemo(() => {
     const hasTime = [form.scriptingTime, form.changesTime, form.testingTime, form.mailingTime]
@@ -249,8 +250,9 @@ export default function KPIWeekly() {
     setNotice('')
   }
 
-  function submitForm(event) {
+  async function submitForm(event) {
     event.preventDefault()
+    if (isSaving) return
     if (!form.projectName.trim()) {
       setNotice('Project Name is required.')
       return
@@ -264,12 +266,34 @@ export default function KPIWeekly() {
       ...form,
       projectName: form.projectName.trim(),
       totalEstimatedHours: totalEstimatedHours,
-      submittedAt: new Date().toISOString(),
-      localId: Date.now()
+      id: window.crypto && window.crypto.randomUUID
+        ? window.crypto.randomUUID()
+        : 'kpi-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+      submittedAt: new Date().toISOString()
     }
-    setSubmissions(previous => [record, ...previous])
-    setForm(INITIAL_FORM)
-    setNotice('KPI Weekly entry added to this session. It has not been sent to Google Sheets.')
+
+    setIsSaving(true)
+    setNotice('')
+    try {
+      const response = await fetch('/api/kpi-weekly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record)
+      })
+      const result = await response.json()
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'The KPI entry could not be saved.')
+      }
+
+      const savedRecord = { ...record, sheetRow: result.row, syncAction: result.action }
+      setSubmissions(previous => [savedRecord, ...previous])
+      setForm(INITIAL_FORM)
+      setNotice('Saved to Google Sheets successfully (row ' + result.row + ').')
+    } catch (error) {
+      setNotice('Google Sheets save failed: ' + error.message + ' Your form data is still here; you can retry.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   function exportExcel() {
@@ -313,7 +337,7 @@ export default function KPIWeekly() {
             <span className="kpi-eyebrow">SCRIPTING OPERATIONS</span>
             <h2>Team reporting</h2>
           </div>
-          <span className="kpi-preview-label"><span /> Local preview only</span>
+          <span className="kpi-preview-label connected"><span /> Google Sheets connection</span>
         </header>
 
         <div className="kpi-content">
@@ -336,7 +360,7 @@ export default function KPIWeekly() {
           <div className="kpi-stats">
             <div className="kpi-stat-card"><span className="kpi-stat-icon"><FileSpreadsheet size={18} /></span><div><small>Entries this session</small><strong>{submissions.length}</strong></div></div>
             <div className="kpi-stat-card"><span className="kpi-stat-icon hours"><Activity size={18} /></span><div><small>Estimated hours</small><strong>{submissions.reduce((sum, item) => sum + Number(item.totalEstimatedHours || 0), 0).toFixed(2)}</strong></div></div>
-            <div className="kpi-stat-card"><span className="kpi-stat-icon ready"><CheckCircle2 size={18} /></span><div><small>Mode</small><strong className="kpi-mode-value">Preview only</strong></div></div>
+            <div className="kpi-stat-card"><span className="kpi-stat-icon ready"><CheckCircle2 size={18} /></span><div><small>Mode</small><strong className="kpi-mode-value">Connected</strong></div></div>
           </div>
 
           {notice && <div className="kpi-notice"><CheckCircle2 size={17} />{notice}</div>}
@@ -375,7 +399,7 @@ export default function KPIWeekly() {
                 ))}
                 <div className="kpi-form-actions">
                   <p><span className="required-mark">*</span> Required field</p>
-                  <button className="kpi-button primary submit" type="submit"><Plus size={17} /> Add KPI entry</button>
+                  <button className="kpi-button primary submit" type="submit" disabled={isSaving}>{isSaving ? 'Saving to Google Sheets...' : <><Plus size={17} /> Save to KPI Weekly</>}</button>
                 </div>
               </div>
 
@@ -424,7 +448,7 @@ export default function KPIWeekly() {
             )}
           </section>
 
-          <footer className="kpi-footer">ScriptFlow · KPI Weekly frontend preview · No backend connection</footer>
+          <footer className="kpi-footer">ScriptFlow · KPI Weekly · Google Sheets connection</footer>
         </div>
       </main>
     </div>
