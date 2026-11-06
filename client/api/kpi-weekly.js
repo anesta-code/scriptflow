@@ -3,7 +3,7 @@ import { callAppsScript, readCookie, requireMethod, verifySession } from './_lib
 function sameOrigin(req) {
   const origin = req.headers.origin
   const host = req.headers.host
-  return !origin || (host && new URL(origin).host === host)
+  return Boolean(origin && host && new URL(origin).host === host)
 }
 
 function toSheetJob(record) {
