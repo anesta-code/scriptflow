@@ -147,7 +147,15 @@ export async function callAppsScript(body) {
       operation: body && body.operation ? body.operation : 'unknown',
       httpStatus: response.status,
       contentType: response.headers.get('content-type') || 'unknown',
-      responseLength: text.length
+      responseLength: text.length,
+      redirected: Boolean(response.redirected),
+      finalResponseHost: (() => {
+        try {
+          return response.url ? new URL(response.url).hostname : 'unknown'
+        } catch (error) {
+          return 'unparseable'
+        }
+      })()
     })
     throw new Error('The ScriptFlow Apps Script API returned a non-JSON response. Check that the API Web App is deployed and accessible.')
   }
