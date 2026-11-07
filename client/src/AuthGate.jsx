@@ -1,85 +1,171 @@
 import { useEffect, useState } from 'react'
+import { isSupabaseConfigured, supabase } from './services/supabase'
 
 export default function AuthGate({ children }) {
+  const [session, setSession] = useState(null)
   const [status, setStatus] = useState('checking')
   const [user, setUser] = useState(null)
   const [error, setError] = useState('')
+  const [signingIn, setSigningIn] = useState(false)
 
   useEffect(() => {
-    let active = true
-    const currentUrl = new URL(window.location.href)
-
-    if (currentUrl.pathname === '/auth/callback') {
-      const params = new URLSearchParams(currentUrl.hash.replace(/^#/, ''))
-      const token = params.get('token')
-      const state = params.get('state')
-      // Remove the bearer assertion from browser history before any request.
-      window.history.replaceState({}, document.title, '/')
-      if (!token || !state) {
-        setError('The sign-in response is missing. Please sign in again.')
-        setStatus('error')
-        return () => { active = false }
-      }
-      fetch('/api/auth/exchange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ token, state })
-      })
-        .then(async response => {
-          const result = await response.json()
-          if (!response.ok || !result.ok) throw new Error(result.error || 'Sign-in failed.')
-          return result
-        })
-        .then(result => {
-          if (!active) return
-          setUser(result.user)
-          setStatus('ready')
-        })
-        .catch(err => {
-          if (!active) return
-          setError(err.message)
-          setStatus('error')
-        })
-      return () => { active = false }
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Supabase is not configured. Please check the Vercel Supabase environment variables.')
+      setStatus('error')
+      return
     }
 
-    fetch('/api/auth/session', { credentials: 'same-origin' })
-      .then(async response => {
-        if (response.status === 401) return null
-        const result = await response.json()
-        if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to verify session.')
-        return result.user
-      })
-      .then(currentUser => {
-        if (!active) return
-        if (currentUser) {
-          setUser(currentUser)
-          setStatus('ready')
-        } else {
-          setStatus('signed-out')
-        }
-      })
-      .catch(err => {
-        if (!active) return
-        setError(err.message)
+    let active = true
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return
+      setSession(nextSession)
+      if (!nextSession) {
+        setUser(null)
+        setStatus('signed-out')
+      }
+    })
+
+    supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active) return
+      if (sessionError) {
+        setError(sessionError.message)
         setStatus('error')
-      })
-    return () => { active = false }
+        return
+      }
+      setSession(data.session)
+      if (!data.session) setStatus('signed-out')
+    })
+
+    return () => {
+      active = false
+      authListener.subscription.unsubscribe()
+    }
   }, [])
 
-  async function signOut() {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
-    setUser(null)
-    setStatus('signed-out')
+  useEffect(() => {
+    if (!session || !session.user || !supabase) return
+
+    let active = true
+
+    async function loadExistingProfile() {
+      setStatus('loading-profile')
+      setError('')
+
+      try {
+        const authUser = session.user
+        const email = (authUser.email || '').trim().toLowerCase()
+        const hasGoogleIdentity = Array.isArray(authUser.identities) &&
+          authUser.identities.some(identity => identity.provider === 'google')
+
+        if (!email || !authUser.email_confirmed_at || !hasGoogleIdentity) {
+          throw new Error('Please sign in with your verified Bilendi Google Workspace account.')
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, role, is_active')
+          .eq('id', authUser.id)
+          .maybeSingle()
+
+        if (profileError) throw profileError
+
+        if (!profile || profile.id !== authUser.id) {
+          throw new Error('Your existing ScriptFlow profile could not be found. No new profile will be created by this sign-in screen.')
+        }
+
+        if ((profile.email || '').trim().toLowerCase() !== email) {
+          throw new Error('The Google account does not match the email on your existing ScriptFlow profile.')
+        }
+
+        if (!profile.is_active) {
+          throw new Error('Your ScriptFlow account is inactive. Please contact your administrator.')
+        }
+
+        if (active) {
+          setUser({
+            id: profile.id,
+            email: profile.email,
+            full_name: profile.full_name,
+            role: profile.role
+          })
+          setStatus('ready')
+        }
+      } catch (err) {
+        if (active) {
+          setError(err.message || 'Unable to load your ScriptFlow profile.')
+          setStatus('error')
+        }
+      }
+    }
+
+    loadExistingProfile()
+
+    return () => { active = false }
+  }, [session])
+
+  async function signIn() {
+    if (!supabase) return
+    setSigningIn(true)
+    setError('')
+
+    const { error: signInError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          prompt: 'select_account'
+        }
+      }
+    })
+
+    if (signInError) {
+      setError(signInError.message)
+      setSigningIn(false)
+    }
   }
 
-  if (status === 'checking') return <div className="sf-auth-screen">Checking your ScriptFlow session…</div>
+  async function signOut() {
+    if (!supabase) return
+    const { error: signOutError } = await supabase.auth.signOut()
+    if (signOutError) {
+      setError(signOutError.message)
+      setStatus('error')
+    }
+  }
+
+  if (status === 'checking' || status === 'loading-profile') {
+    return <div className="sf-auth-screen"> {status === 'checking' ? 'Checking your ScriptFlow session…' : 'Loading your ScriptFlow profile…'} </div>
+  }
+
   if (status === 'signed-out') {
-    return <div className="sf-auth-screen"><div className="sf-auth-card"><h1>ScriptFlow</h1><p>Sign in with your Bilendi Google Workspace account to continue.</p><a className="sf-auth-button" href="/api/auth/start">Continue with Bilendi</a></div></div>
+    return (
+      <div className="sf-auth-screen">
+        <div className="sf-auth-card">
+          <h1>ScriptFlow</h1>
+          <p>Sign in using your Bilendi Google Workspace account.</p>
+          {error && <p className="sf-auth-error">{error}</p>}
+          <button className="sf-auth-button" type="button" onClick={signIn} disabled={signingIn}>
+            {signingIn ? 'Redirecting to Google…' : 'Sign in with Google'}
+          </button>
+        </div>
+      </div>
+    )
   }
+
   if (status === 'error') {
-    return <div className="sf-auth-screen"><div className="sf-auth-card"><h1>Sign-in error</h1><p>{error}</p><a className="sf-auth-button" href="/api/auth/start">Try again</a></div></div>
+    return (
+      <div className="sf-auth-screen">
+        <div className="sf-auth-card">
+          <h1>Sign-in error</h1>
+          <p className="sf-auth-error">{error}</p>
+          <button className="sf-auth-button" type="button" onClick={signIn} disabled={signingIn}>
+            {signingIn ? 'Redirecting to Google…' : 'Try again with Google'}
+          </button>
+        </div>
+      </div>
+    )
   }
+
   return <>{children({ user, signOut })}</>
 }
