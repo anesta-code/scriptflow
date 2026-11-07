@@ -219,7 +219,7 @@ function Field({ field, value, onChange }) {
   )
 }
 
-export default function KPIWeekly() {
+export default function KPIWeekly({ user, signOut }) {
   const [form, setForm] = useState(INITIAL_FORM)
   const [submissions, setSubmissions] = useState([])
   const [search, setSearch] = useState('')
@@ -337,7 +337,11 @@ export default function KPIWeekly() {
             <span className="kpi-eyebrow">SCRIPTING OPERATIONS</span>
             <h2>Team reporting</h2>
           </div>
-          <span className="kpi-preview-label connected"><span /> Google Sheets integration</span>
+          <div className="kpi-user-area">
+            <span className="kpi-preview-label connected"><span /> Google Sheets integration</span>
+            {user && <span className="kpi-user-email">{user.email} · {user.role.replace(/_/g, ' ')}</span>}
+            <button type="button" className="kpi-button secondary kpi-logout" onClick={signOut}>Sign out</button>
+          </div>
         </header>
 
         <div className="kpi-content">
