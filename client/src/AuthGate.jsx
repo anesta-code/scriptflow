@@ -58,8 +58,8 @@ export default function AuthGate({ children }) {
         const hasGoogleIdentity = Array.isArray(authUser.identities) &&
           authUser.identities.some(identity => identity.provider === 'google')
 
-        if (!email || !authUser.email_confirmed_at || !hasGoogleIdentity) {
-          throw new Error('Please sign in with your verified Bilendi Google Workspace account.')
+        if (!email || !authUser.email_confirmed_at || !hasGoogleIdentity || !email.endsWith('@bilendi.com')) {
+          throw new Error('Please sign in with your verified Bilendi Google Workspace account (@bilendi.com).')
         }
 
         const { data: profile, error: profileError } = await supabase
@@ -72,6 +72,16 @@ export default function AuthGate({ children }) {
 
         if (!profile || profile.id !== authUser.id) {
           throw new Error('Your existing ScriptFlow profile could not be found. No new profile will be created by this sign-in screen.')
+        }
+
+        const { data: matchingProfiles, error: matchingProfilesError } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('email', email)
+
+        if (matchingProfilesError) throw matchingProfilesError
+        if (!matchingProfiles || matchingProfiles.length !== 1 || matchingProfiles[0].id !== authUser.id) {
+          throw new Error('More than one ScriptFlow profile matches this email, or the existing profile could not be verified. Sign-in has been stopped to protect your account.')
         }
 
         if ((profile.email || '').trim().toLowerCase() !== email) {
