@@ -124,6 +124,7 @@ export default function AuthGate({ children }) {
       options: {
         redirectTo: window.location.origin,
         queryParams: {
+          hd: 'bilendi.com',
           prompt: 'select_account'
         }
       }
