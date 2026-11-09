@@ -39,8 +39,11 @@ var SF = {
 };
 
 /* Both deployments use this same doGet. Only the AUTH URL is used by users. */
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
+function doGet(e) {
+  var state = e && e.parameter && e.parameter.state ? String(e.parameter.state) : '';
+  var template = HtmlService.createTemplateFromFile('Index');
+  template.signInState = JSON.stringify(state);
+  return template.evaluate()
     .setTitle('ScriptFlow secure sign-in')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
