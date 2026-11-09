@@ -67,7 +67,7 @@ export async function callAppsScript(body) {
     throw new Error('SCRIPT_FLOW_API_URL must be the separate ScriptFlow API Apps Script /exec URL.')
   }
   if (apiUrl.protocol !== 'https:' || apiUrl.hostname !== 'script.google.com' ||
-      !/^\/a\/macros\/bilendi\.com\/s\/[^/]+\/exec\/?$/.test(apiUrl.pathname)) {
+      !/^\/(?:a\/macros\/bilendi\.com|macros)\/s\/[^/]+\/exec\/?$/.test(apiUrl.pathname)) {
     throw new Error('SCRIPT_FLOW_API_URL must point to the Bilendi ScriptFlow API Web App /exec endpoint.')
   }
 

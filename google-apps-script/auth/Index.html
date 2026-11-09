@@ -24,7 +24,7 @@
   </main>
   <script>
     var identity = null;
-    var state = new URLSearchParams(window.location.search).get('state') || '';
+    var state = <?!= signInState ?>;
 
     function showError(message) {
       var box = document.getElementById('error');
