@@ -458,7 +458,7 @@ export default function KPIWeekly({ user, signOut }) {
                   <li>The test link and scripting time are combined into the existing spreadsheet column.</li>
                   <li>A hidden <strong>__ScriptFlow_ID</strong> is used to identify each submitted record.</li>
                 </ul>
-                <div className="kpi-warning"><strong>Connection setup required</strong><span>The Vercel API and Apps Script deployment must both be configured before submissions can reach Google Sheets.</span></div>
+                <div className="kpi-warning"><strong>Existing record protection</strong><span>When you edit a listed record, ScriptFlow reuses its permanent spreadsheet ID so the same row is updated instead of adding a duplicate.</span></div>
               </aside>
             </div>
           </form>}
