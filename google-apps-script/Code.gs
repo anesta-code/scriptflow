@@ -18,7 +18,7 @@
  *   AUTH_TOKEN_SECRET       shared with Vercel for signed employee assertions
  *   SCRIPT_FLOW_API_SECRET  shared with Vercel for signed API requests
  *   VERCEL_CALLBACK_URL     https://scriptflow-bice.vercel.app/
- *   KPI_SPREADSHEET_ID      optional; defaults to the configured ID below
+ *   KPI_SPREADSHEET_ID      optional; must point to the spreadsheet containing the KPI Migration tab
  *   SCRIPT_FLOW_USER_ROLES  optional JSON email-to-role overrides
  *
  * There is NO ScriptFlow database. KPI Weekly is the only data store.
@@ -338,7 +338,11 @@ function listKpiRecords_(user) {
   var props = PropertiesService.getScriptProperties();
   var spreadsheetId = props.getProperty('KPI_SPREADSHEET_ID') || SF.KPI_ID;
   var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(SF.KPI_TAB);
-  if (!sheet) throw new Error('KPI Weekly worksheet was not found.');
+  if (!sheet) {
+    var availableTabs = SpreadsheetApp.openById(spreadsheetId).getSheets()
+      .map(function(tab) { return '[' + tab.getName() + ']'; }).join(', ');
+    throw new Error('KPI Migration worksheet was not found. Available tabs in the configured spreadsheet: ' + availableTabs);
+  }
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
