@@ -1,187 +1,359 @@
 /**
- * ScriptFlow Google Workspace authentication broker.
+ * SCRIPT FLOW — UNIFIED GOOGLE APPS SCRIPT PROJECT
  *
- * Deploy as a Bilendi-domain-restricted Web App:
+ * Deploy this SAME project twice:
+ *
+ * AUTH deployment:
  *   Execute as: Me
  *   Who has access: Anyone within bilendi.com
+ *   Use URL in Vercel GOOGLE_WORKSPACE_AUTH_URL.
  *
- * Script Properties:
- *   SCRIPT_FLOW_DATABASE_ID - created by setupScriptFlowDatabase()
- *   AUTH_TOKEN_SECRET       - shared with the separate ScriptFlow API project
- *   VERCEL_CALLBACK_URL     - https://scriptflow-bice.vercel.app/
+ * API deployment:
+ *   Execute as: Me
+ *   Who has access: Anyone
+ *   Use URL in Vercel SCRIPT_FLOW_API_URL.
+ *   Every POST is HMAC authenticated; never remove that check.
+ *
+ * Script Properties (one set, shared by both deployments):
+ *   AUTH_TOKEN_SECRET       shared with Vercel for signed employee assertions
+ *   SCRIPT_FLOW_API_SECRET  shared with Vercel for signed API requests
+ *   VERCEL_CALLBACK_URL     https://scriptflow-bice.vercel.app/
+ *   KPI_SPREADSHEET_ID      optional; defaults to the configured ID below
+ *   SCRIPT_FLOW_USER_ROLES  optional JSON email-to-role overrides
+ *
+ * There is NO ScriptFlow database. KPI Weekly is the only data store.
  */
 
-var AUTH_CONFIG = {
-  COMPANY_DOMAIN: 'bilendi.com',
-  INITIAL_ADMIN: 'a.nesta@bilendi.com',
+var SF = {
+  DOMAIN: 'bilendi.com',
+  KPI_ID: '1Ew-1cROn4Q2XpEV4t3b5jrgjP3MRUB50MDg6ofpuDQY',
+  KPI_TAB: 'KPI weekly',
+  ID_HEADER: '__ScriptFlow_ID',
+  TOKEN_SECONDS: 120,
   DEFAULT_ROLE: 'scripter',
-  TOKEN_LIFETIME_SECONDS: 120
+  ROLES: {
+    'a.nesta@bilendi.com': 'team_lead',
+    'g.sardoo@bilendi.com': 'scripter',
+    'n.latreille@bilendi.com': 'scripter'
+  }
 };
 
-function doGet(e) {
-  var template = HtmlService.createTemplateFromFile('Index');
-  template.loginError = '';
-  return template.evaluate()
+/* Both deployments use this same doGet. Only the AUTH URL is used by users. */
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('ScriptFlow secure sign-in')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-/**
- * Trusts only the Workspace identity supplied by Apps Script.
- * New @bilendi.com employees are registered on first sign-in.
- */
-function getAuthenticatedEmployee_() {
-  var email = String(Session.getActiveUser().getEmail() || '')
-    .toLowerCase().trim();
-
-  if (!email || email.indexOf('@') < 1) {
-    throw new Error('Google Workspace could not identify your account. Sign in with your Bilendi account.');
-  }
-
-  if (email.split('@')[1] !== AUTH_CONFIG.COMPANY_DOMAIN) {
-    throw new Error('Access denied. A Bilendi Google Workspace account is required.');
-  }
-
-  var spreadsheet = getAuthDatabase_();
-  var sheet = spreadsheet.getSheetByName('Users');
-  if (!sheet) throw new Error('The Users tab is missing from ScriptFlow Database.');
-
-  var values = sheet.getDataRange().getValues();
-  if (!values.length) throw new Error('The Users tab has no header row.');
-  var headers = values[0];
-  var emailCol = headers.indexOf('email');
-  var idCol = headers.indexOf('user_id');
-  var nameCol = headers.indexOf('full_name');
-  var roleCol = headers.indexOf('role');
-  var statusCol = headers.indexOf('status');
-  var loginCol = headers.indexOf('last_login_at');
-  var updatedCol = headers.indexOf('updated_at');
-
-  if (emailCol < 0 || idCol < 0 || roleCol < 0 || statusCol < 0) {
-    throw new Error('The Users tab is missing required columns.');
-  }
-
-  var lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+/* The API deployment accepts POST only after validating the HMAC envelope. */
+function doPost(e) {
   try {
-    values = sheet.getDataRange().getValues();
-    var rowNumber = 0;
-    var user = null;
+    var envelope = JSON.parse(e && e.postData && e.postData.contents || '{}');
+    verifyApiEnvelope_(envelope);
+    var p = envelope.payload || {};
 
-    for (var i = 1; i < values.length; i++) {
-      if (String(values[i][emailCol]).toLowerCase().trim() === email) {
-        rowNumber = i + 1;
-        user = values[i];
-        break;
+    if (p.operation === 'redeem_auth_token') {
+      return json_(redeemAuthToken_(p));
+    }
+    if (p.operation === 'sync_job') {
+      var user = verifyUser_(p.user);
+      if (user.role !== 'admin' && user.role !== 'team_lead') {
+        throw new Error('Only team leads can submit KPI records.');
       }
+      return json_(saveKpiRecord_(p.job));
     }
-
-    var now = new Date().toISOString();
-
-    if (!user) {
-      var role = email === AUTH_CONFIG.INITIAL_ADMIN ? 'admin' : AUTH_CONFIG.DEFAULT_ROLE;
-      var fullName = email.split('@')[0].replace(/[._-]+/g, ' ');
-      var newRow = headers.map(function(header) {
-        if (header === 'user_id') return Utilities.getUuid();
-        if (header === 'email') return email;
-        if (header === 'full_name') return fullName;
-        if (header === 'role') return role;
-        if (header === 'status') return 'active';
-        if (header === 'created_at' || header === 'updated_at') return now;
-        if (header === 'last_login_at') return now;
-        return '';
-      });
-      sheet.appendRow(newRow);
-      user = newRow;
-    } else {
-      if (String(user[statusCol]).toLowerCase() !== 'active') {
-        throw new Error('Your ScriptFlow account is inactive. Please contact your administrator.');
-      }
-      if (loginCol >= 0) sheet.getRange(rowNumber, loginCol + 1).setValue(now);
-      if (updatedCol >= 0) sheet.getRange(rowNumber, updatedCol + 1).setValue(now);
-    }
-
-    var roleValue = String(user[roleCol] || AUTH_CONFIG.DEFAULT_ROLE);
-    if (email === AUTH_CONFIG.INITIAL_ADMIN && roleValue !== 'admin') {
-      roleValue = 'admin';
-      sheet.getRange(rowNumber || sheet.getLastRow(), roleCol + 1).setValue('admin');
-    }
-
-    return {
-      user_id: String(user[idCol] || ''),
-      email: email,
-      full_name: nameCol >= 0 ? String(user[nameCol] || '') : '',
-      role: roleValue,
-      status: 'active'
-    };
-  } finally {
-    lock.releaseLock();
+    throw new Error('Unsupported operation.');
+  } catch (err) {
+    return json_({ ok: false, error: String(err && err.message ? err.message : err) });
   }
 }
 
-function getAuthDatabase_() {
-  var id = PropertiesService.getScriptProperties()
-    .getProperty('SCRIPT_FLOW_DATABASE_ID');
-  if (!id) throw new Error('SCRIPT_FLOW_DATABASE_ID is not configured. Run setupScriptFlowDatabase() in this project first.');
-  return SpreadsheetApp.openById(id);
+/* -------------------- Workspace authentication -------------------- */
+
+function getSignInIdentity() {
+  var user = authenticatedEmployee_();
+  return { success: true, email: user.email, role: user.role };
 }
 
 function issueAuthToken(state) {
-  var employee = getAuthenticatedEmployee_();
-  var properties = PropertiesService.getScriptProperties();
-  var secret = properties.getProperty('AUTH_TOKEN_SECRET');
-  var callbackUrl = properties.getProperty('VERCEL_CALLBACK_URL');
+  var user = authenticatedEmployee_();
+  var props = PropertiesService.getScriptProperties();
+  var secret = props.getProperty('AUTH_TOKEN_SECRET');
+  var callback = props.getProperty('VERCEL_CALLBACK_URL');
 
-  if (!secret || secret.length < 32) {
-    throw new Error('AUTH_TOKEN_SECRET is not configured correctly.');
-  }
-  if (!callbackUrl || !/^https:\/\//i.test(callbackUrl)) {
-    throw new Error('VERCEL_CALLBACK_URL is not configured.');
-  }
+  if (!secret || secret.length < 32) throw new Error('AUTH_TOKEN_SECRET is not configured correctly.');
+  if (!callback || !/^https:\/\//i.test(callback)) throw new Error('VERCEL_CALLBACK_URL is not configured.');
   if (typeof state !== 'string' || !/^[A-Za-z0-9_-]{32,160}$/.test(state)) {
     throw new Error('Invalid sign-in state. Return to ScriptFlow and try again.');
   }
 
   var now = Math.floor(Date.now() / 1000);
-  var payload = {
+  var assertion = {
     iss: 'scriptflow-bilendi-auth',
     aud: 'scriptflow-vercel',
-    sub: employee.email,
-    role: employee.role,
+    sub: user.email,
+    role: user.role,
     iat: now,
-    exp: now + AUTH_CONFIG.TOKEN_LIFETIME_SECONDS,
+    exp: now + SF.TOKEN_SECONDS,
     jti: Utilities.getUuid(),
     state: state
   };
-
-  var encodedPayload = base64UrlEncode_(JSON.stringify(payload));
-  var signature = Utilities.computeHmacSha256Signature(
-    encodedPayload, secret, Utilities.Charset.UTF_8
-  );
-
+  var encoded = b64url_(JSON.stringify(assertion));
+  var signature = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
   return {
-    token: encodedPayload + '.' + base64UrlEncodeBytes_(signature),
-    callbackUrl: callbackUrl,
-    expiresIn: AUTH_CONFIG.TOKEN_LIFETIME_SECONDS
+    token: encoded + '.' + b64urlBytes_(signature),
+    callbackUrl: callback,
+    expiresIn: SF.TOKEN_SECONDS
   };
 }
 
-function getSignInIdentity() {
-  var employee = getAuthenticatedEmployee_();
-  return {
-    success: true,
-    email: employee.email,
-    full_name: employee.full_name,
-    role: employee.role
+function authenticatedEmployee_() {
+  var email = String(Session.getActiveUser().getEmail() || '').toLowerCase().trim();
+  if (!email || email.indexOf('@') < 1) {
+    throw new Error('Google Workspace could not identify your account. Sign in with your Bilendi account.');
+  }
+  if (email.split('@')[1] !== SF.DOMAIN) {
+    throw new Error('Access denied. A Bilendi Google Workspace account is required.');
+  }
+  return { email: email, role: roleFor_(email) };
+}
+
+/* Explicit roles are held in Script Properties; unknown company users are scripters. */
+function roleFor_(email) {
+  var roles = {};
+  Object.keys(SF.ROLES).forEach(function(k) { roles[k.toLowerCase()] = SF.ROLES[k]; });
+
+  var raw = PropertiesService.getScriptProperties().getProperty('SCRIPT_FLOW_USER_ROLES');
+  if (raw) {
+    var extra;
+    try { extra = JSON.parse(raw); }
+    catch (e) { throw new Error('SCRIPT_FLOW_USER_ROLES must be valid JSON.'); }
+    Object.keys(extra || {}).forEach(function(k) { roles[k.toLowerCase()] = String(extra[k]); });
+  }
+
+  var role = roles[email] || SF.DEFAULT_ROLE;
+  if (['scripter', 'team_lead', 'admin'].indexOf(role) < 0) {
+    throw new Error('Invalid ScriptFlow role configured for ' + email + '.');
+  }
+  return role;
+}
+
+/* ------------------------- Signed API ------------------------------ */
+
+function verifyApiEnvelope_(body) {
+  var secret = PropertiesService.getScriptProperties().getProperty('SCRIPT_FLOW_API_SECRET');
+  if (!secret || secret.length < 32) throw new Error('SCRIPT_FLOW_API_SECRET is not configured.');
+
+  var timestamp = String(body.timestamp || '');
+  var nonce = String(body.nonce || '');
+  if (!/^\d{10}$/.test(timestamp) || !/^[A-Za-z0-9_-]{20,100}$/.test(nonce)) {
+    throw new Error('Invalid request authentication fields.');
+  }
+  if (Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp)) > 60) {
+    throw new Error('Request expired.');
+  }
+  if (!body.payload || typeof body.payload !== 'object') throw new Error('Missing payload.');
+
+  var canonical = timestamp + '\n' + nonce + '\n' + JSON.stringify(body.payload);
+  var expected = hex_(Utilities.computeHmacSha256Signature(canonical, secret, Utilities.Charset.UTF_8));
+  if (!constantEqual_(expected, String(body.signature || '').toLowerCase())) {
+    throw new Error('Unauthorized.');
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var cache = CacheService.getScriptCache();
+    var key = 'sf_req_' + nonce;
+    if (cache.get(key)) throw new Error('Duplicate request.');
+    cache.put(key, '1', 180);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function redeemAuthToken_(p) {
+  var secret = PropertiesService.getScriptProperties().getProperty('AUTH_TOKEN_SECRET');
+  if (!secret || secret.length < 32) throw new Error('AUTH_TOKEN_SECRET is not configured.');
+  var parts = String(p.token || '').split('.');
+  if (parts.length !== 2) throw new Error('Invalid sign-in assertion.');
+
+  var signature = b64urlBytes_(Utilities.computeHmacSha256Signature(parts[0], secret, Utilities.Charset.UTF_8));
+  if (!constantEqual_(signature, parts[1])) throw new Error('Invalid sign-in signature.');
+
+  var assertion;
+  try {
+    assertion = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+  } catch (e) { throw new Error('Invalid sign-in assertion payload.'); }
+
+  var now = Math.floor(Date.now() / 1000);
+  if (assertion.iss !== 'scriptflow-bilendi-auth' ||
+      assertion.aud !== 'scriptflow-vercel' ||
+      !assertion.exp || assertion.exp <= now ||
+      !assertion.iat || assertion.iat > now + 30 ||
+      assertion.exp - assertion.iat > 180 || !assertion.jti) {
+    throw new Error('Sign-in assertion expired or invalid.');
+  }
+  if (!p.expected_state || !constantEqual_(String(assertion.state || ''), String(p.expected_state))) {
+    throw new Error('Sign-in state mismatch.');
+  }
+
+  var email = String(assertion.sub || '').toLowerCase().trim();
+  if (email.split('@')[1] !== SF.DOMAIN) throw new Error('A Bilendi Workspace account is required.');
+  var role = roleFor_(email);
+  if (role !== assertion.role) throw new Error('Your ScriptFlow role changed during sign-in. Please try again.');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var cache = CacheService.getScriptCache();
+    var key = 'sf_auth_' + String(assertion.jti).replace(/[^A-Za-z0-9_-]/g, '');
+    if (cache.get(key)) throw new Error('Sign-in assertion already used.');
+    cache.put(key, '1', Math.max(1, Math.min(180, assertion.exp - now)));
+  } finally {
+    lock.releaseLock();
+  }
+  return { ok: true, user: { email: email, role: role } };
+}
+
+function verifyUser_(context) {
+  if (!context || !context.email || !context.role) throw new Error('Missing user context.');
+  var email = String(context.email).toLowerCase().trim();
+  if (email.split('@')[1] !== SF.DOMAIN) throw new Error('User is not authorised.');
+  var role = roleFor_(email);
+  if (role !== context.role) throw new Error('User role has changed. Please sign in again.');
+  return { email: email, role: role };
+}
+
+/* ------------------------- KPI Weekly ------------------------------ */
+
+function saveKpiRecord_(job) {
+  if (!job || !job.id || !String(job.project_name || '').trim()) {
+    throw new Error('Missing KPI record ID or Project Name.');
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  var spreadsheetId = props.getProperty('KPI_SPREADSHEET_ID') || SF.KPI_ID;
+  var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(SF.KPI_TAB);
+  if (!sheet) throw new Error('KPI Weekly worksheet was not found.');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var lastColumn = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+    var idColumn = headers.indexOf(SF.ID_HEADER) + 1;
+    if (!idColumn) {
+      idColumn = lastColumn + 1;
+      sheet.getRange(1, idColumn).setValue(SF.ID_HEADER);
+      sheet.hideColumns(idColumn);
+      headers.push(SF.ID_HEADER);
+    }
+
+    var lastRow = sheet.getLastRow();
+    var target = 0;
+    if (lastRow >= 2) {
+      var ids = sheet.getRange(2, idColumn, lastRow - 1, 1).getDisplayValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]).trim() === String(job.id)) { target = i + 2; break; }
+      }
+    }
+    var action = target ? 'updated' : 'inserted';
+    if (!target) target = Math.max(lastRow + 1, 2);
+
+    for (var c = 0; c < headers.length; c++) {
+      if (headers[c] === SF.ID_HEADER) continue;
+      var mapped = fieldForHeader_(headers[c], job);
+      if (mapped.found) sheet.getRange(target, c + 1).setValue(safeCell_(mapped.value));
+    }
+    sheet.getRange(target, idColumn).setValue(job.id);
+    return { ok: true, action: action, row: target };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function fieldForHeader_(header, job) {
+  var key = String(header || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+
+  var map = {
+    'sw':'sw',
+    'project number':'project_number',
+    'spm project number':'spm_project_number',
+    'project name':'project_name',
+    'tester':'tester',
+    'pm':'pm',
+    'status':'status',
+    'questions':'questions',
+    'loi':'loi',
+    'level':'level',
+    'qnr received on':'qnr_received_on',
+    'date sent to qa':'date_sent_to_qa',
+    'date sent to pm':'date_sent_to_pm',
+    'launch date':'launch_date',
+    'changes time hours':'changes_time_hours',
+    'testing time hours':'testing_time_hours',
+    'mailing time':'mailing_time_hours',
+    'mailing time hours':'mailing_time_hours',
+    'total estimated hours':'total_estimated_hours',
+    'hours worked':'hours_worked',
+    'commissioning country':'commissioning_country',
+    'overlay':'overlay',
+    'price scripting':'price_scripting',
+    'hours commissioned':'hours_commissioned',
+    'client':'client',
+    'bari oe checks':'bari_oe_checks',
+    'bari moderations':'bari_moderations',
+    'bari scripting':'bari_scripting',
+    'bsurvey':'bsurvey',
+    'complexity as spm':'complexity_as_spm'
   };
+
+  if (key === 'test link scripting time per hrs' || key === 'test link scripting time hrs') {
+    var bits = [];
+    if (job.test_link) bits.push(String(job.test_link));
+    if (job.scripting_time_hours !== '' && job.scripting_time_hours !== null &&
+        job.scripting_time_hours !== undefined) bits.push(String(job.scripting_time_hours) + ' hrs');
+    return { found: true, value: bits.join(' | ') };
+  }
+  if (key === 'test link') return { found: true, value: job.test_link || '' };
+
+  var field = map[key];
+  if (!field) return { found: false, value: '' };
+  var value = job[field];
+  return { found: true, value: value === null || value === undefined ? '' : value };
 }
 
-function base64UrlEncode_(value) {
-  return Utilities.base64EncodeWebSafe(
-    Utilities.newBlob(value).getBytes()
-  ).replace(/=+$/g, '');
+/* ----------------------------- Helpers ----------------------------- */
+
+function safeCell_(value) {
+  if (typeof value === 'string' && /^[=+@]/.test(value)) return "'" + value;
+  if (typeof value === 'string' && /^-/.test(value) && isNaN(Number(value))) return "'" + value;
+  return value;
 }
 
-function base64UrlEncodeBytes_(bytes) {
+function b64url_(value) {
+  return Utilities.base64EncodeWebSafe(Utilities.newBlob(value).getBytes()).replace(/=+$/g, '');
+}
+function b64urlBytes_(bytes) {
   return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, '');
+}
+function hex_(bytes) {
+  return bytes.map(function(v) {
+    v = v < 0 ? v + 256 : v;
+    return ('0' + v.toString(16)).slice(-2);
+  }).join('');
+}
+function constantEqual_(a, b) {
+  a = String(a || ''); b = String(b || '');
+  if (a.length !== b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+function json_(value) {
+  return ContentService.createTextOutput(JSON.stringify(value))
+    .setMimeType(ContentService.MimeType.JSON);
 }
