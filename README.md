@@ -116,7 +116,7 @@ In the Vercel project settings, configure these server-side environment variable
 
 The Vercel API also needs the employee assertion secret. Set `AUTH_TOKEN_SECRET` in Vercel to the exact same value as the Apps Script property. (It is used only by the server-side token exchange route.) Redeploy after changing environment variables.
 
-Do not use a `VITE_` prefix for any secret.
+Do not use a `VITE_` prefix for any secret. Vercel does not need an `AUTH_TOKEN_SECRET` variable: that secret is used only inside Apps Script to sign and verify the short-lived employee assertion. The Vercel exchange route verifies the assertion by calling the signed Apps Script API.
 
 ## Current role policy
 
