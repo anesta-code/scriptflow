@@ -51,6 +51,19 @@ export default async function handler(req, res) {
 
   const session = verifySession(readCookie(req, 'sf_session'), process.env.SCRIPT_FLOW_SESSION_SECRET)
   if (!session) return res.status(401).json({ ok: false, error: 'Please sign in with your Bilendi account.' })
+  if (req.body && req.body.action === 'list') {
+    try {
+      const result = await callAppsScript({
+        operation: 'list_kpi_records',
+        user: { email: session.sub, role: session.role }
+      })
+      return res.status(200).json({ ok: true, records: result.records || [] })
+    } catch (error) {
+      console.error('[ScriptFlow KPI list]', error)
+      return res.status(502).json({ ok: false, error: error.message || 'Unable to load KPI records from Google Sheets.' })
+    }
+  }
+
   if (session.role !== 'admin' && session.role !== 'team_lead') return res.status(403).json({ ok: false, error: 'Only administrators and team leads can submit KPI records.' })
 
   const record = req.body
