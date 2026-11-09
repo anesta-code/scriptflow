@@ -399,13 +399,13 @@ function recordFromSheetRow_(headers, values, display, id, rowNumber) {
   };
   for (var c = 0; c < headers.length; c++) {
     var key = String(headers[c] || '').toLowerCase()
-      .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
-      .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\\s+/g, ' ');
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
     var field = fields[key];
     if (field) record[field] = sheetValueForForm_(values[c], display[c]);
     if (key === 'test link scripting time per hrs' || key === 'test link scripting time hrs') {
       var combined = String(display[c] || '').trim();
-      var match = combined.match(/^(.*?)(?:\\s*\\|\\s*([0-9]+(?:\\.[0-9]+)?)\\s*hrs?)?$/i);
+      var match = combined.match(/^(.*?)(?:\s*\|\s*([0-9]+(?:\.[0-9]+)?)\s*hrs?)?$/i);
       record.testLink = match ? String(match[1] || '').trim() : combined;
       record.scriptingTime = match && match[2] ? match[2] : '';
     }
