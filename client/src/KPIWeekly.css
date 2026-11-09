@@ -92,3 +92,10 @@
 
 .kpi-user-area{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}.kpi-user-email{font-size:12px;color:#667085}.kpi-logout{padding:8px 12px}
 @media(max-width:700px){.kpi-user-area{justify-content:flex-start}.kpi-user-email{width:100%}}
+
+
+.kpi-sidebar .kpi-nav-item{width:100%;border:0;text-align:left;cursor:pointer;margin:3px 0;background:transparent;color:#aeb9cd;font:600 12px 'DM Sans',sans-serif}
+.kpi-sidebar .kpi-nav-item:hover,.kpi-sidebar .kpi-nav-item.active{background:#243452;color:#fff}
+.kpi-edit-button{padding:7px 10px;font-size:10px;white-space:nowrap}
+.kpi-readonly{font-size:10px;color:#9aa3b2}
+.kpi-table th:last-child,.kpi-table td:last-child{width:90px}
