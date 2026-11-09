@@ -66,7 +66,7 @@ Older Apps Script files, database migrations and Supabase artifacts may remain i
 
 | Property | Value |
 |---|---|
-| `AUTH_TOKEN_SECRET` | Random secret of at least 32 characters; same value as Vercel's employee assertion secret (see note below). |
+| `AUTH_TOKEN_SECRET` | Random secret of at least 32 characters; stored in this Apps Script project only. |
 | `SCRIPT_FLOW_API_SECRET` | Random secret of at least 32 characters; same value as Vercel's API signing secret. |
 | `VERCEL_CALLBACK_URL` | `https://scriptflow-bice.vercel.app/` |
 | `KPI_SPREADSHEET_ID` | Optional; defaults to the existing KPI workbook ID in `Code.gs`. |
