@@ -91,8 +91,11 @@ export async function callAppsScript(body) {
   try { result = JSON.parse(text) } catch (error) {
     diagnostic('invalid_response', {
       status: response.status,
+      statusText: response.statusText,
       redirected: Boolean(response.redirected),
-      host: response.url ? new URL(response.url).hostname : 'unknown'
+      host: response.url ? new URL(response.url).hostname : 'unknown',
+      contentType: response.headers.get('content-type'),
+      responsePreview: text.slice(0, 300)
     })
     throw new Error('The ScriptFlow API returned a non-JSON response. Check its Web App deployment access.')
   }
