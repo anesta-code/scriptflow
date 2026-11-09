@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Activity, ArrowDownToLine, CheckCircle2, ClipboardList, FileSpreadsheet,
-  Plus, RotateCcw, Search
+  Plus, RotateCcw, Search, Pencil, RefreshCw
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import './KPIWeekly.css'
@@ -189,7 +189,7 @@ function Field({ field, value, onChange }) {
       <label className="kpi-field">
         <span>{label}{required && <b className="required-mark"> *</b>}</span>
         <select name={name} value={value} onChange={event => onChange(name, event.target.value)} required={required}>
-          {STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+          {value && !STATUS_OPTIONS.includes(value) && <option value={value}>{value}</option>}{STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
     )
@@ -221,8 +221,12 @@ function Field({ field, value, onChange }) {
 
 export default function KPIWeekly({ user, signOut }) {
   const [form, setForm] = useState(INITIAL_FORM)
-  const [submissions, setSubmissions] = useState([])
+  const [records, setRecords] = useState([])
   const [search, setSearch] = useState('')
+  const [activeTab, setActiveTab] = useState('records')
+  const [editingId, setEditingId] = useState('')
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true)
+  const canEdit = Boolean(user && (user.role === 'admin' || user.role === 'team_lead'))
   const [notice, setNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -236,14 +240,55 @@ export default function KPIWeekly({ user, signOut }) {
       numberValue(form.mailingTime)
   }, [form.scriptingTime, form.changesTime, form.testingTime, form.mailingTime])
 
-  const filteredSubmissions = useMemo(() => {
+  const filteredRecords = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return submissions
-    return submissions.filter(item =>
+    if (!term) return records
+    return records.filter(item =>
       [item.projectName, item.projectNumber, item.spmProjectNumber, item.client, item.tester, item.pm]
         .some(value => String(value || '').toLowerCase().includes(term))
     )
-  }, [submissions, search])
+  }, [records, search])
+
+  async function loadRecords() {
+    setIsLoadingRecords(true)
+    try {
+      const response = await fetch('/api/kpi-weekly/list', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store'
+      })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to load KPI records.')
+      setRecords(Array.isArray(result.records) ? result.records : [])
+      setNotice('')
+    } catch (error) {
+      setNotice('Could not load KPI Migration records: ' + error.message)
+    } finally {
+      setIsLoadingRecords(false)
+    }
+  }
+
+  useEffect(() => { loadRecords() }, [])
+
+  function editRecord(record) {
+    if (!canEdit) return
+    const next = { ...INITIAL_FORM }
+    Object.keys(next).forEach(key => {
+      if (record[key] !== undefined && record[key] !== null) next[key] = String(record[key])
+    })
+    setForm(next)
+    setEditingId(record.id)
+    setActiveTab('form')
+    setNotice('Editing ' + (record.projectName || 'KPI record') + '. Changes will update its existing spreadsheet row.')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function startNewRecord() {
+    setForm(INITIAL_FORM)
+    setEditingId('')
+    setActiveTab('form')
+    setNotice('')
+  }
 
   function updateField(name, value) {
     setForm(previous => ({ ...previous, [name]: value }))
@@ -266,9 +311,9 @@ export default function KPIWeekly({ user, signOut }) {
       ...form,
       projectName: form.projectName.trim(),
       totalEstimatedHours: totalEstimatedHours,
-      id: window.crypto && window.crypto.randomUUID
+      id: editingId || (window.crypto && window.crypto.randomUUID
         ? window.crypto.randomUUID()
-        : 'kpi-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+        : 'kpi-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
       submittedAt: new Date().toISOString()
     }
 
@@ -285,10 +330,11 @@ export default function KPIWeekly({ user, signOut }) {
         throw new Error(result.error || 'The KPI entry could not be saved.')
       }
 
-      const savedRecord = { ...record, sheetRow: result.row, syncAction: result.action }
-      setSubmissions(previous => [savedRecord, ...previous])
+      setEditingId('')
       setForm(INITIAL_FORM)
-      setNotice('Saved to Google Sheets successfully (row ' + result.row + ').')
+      setActiveTab('records')
+      await loadRecords()
+      setNotice((result.action === 'updated' ? 'Updated existing KPI record' : 'Added new KPI record') + ' successfully (spreadsheet row ' + result.row + ').')
     } catch (error) {
       setNotice('Google Sheets save failed: ' + error.message + ' Your form data is still here; you can retry.')
     } finally {
@@ -297,8 +343,8 @@ export default function KPIWeekly({ user, signOut }) {
   }
 
   function exportExcel() {
-    if (!submissions.length) return
-    const rows = submissions.map(buildExcelRow)
+    if (!records.length) return
+    const rows = records.map(buildExcelRow)
     const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXCEL_HEADERS })
     worksheet['!cols'] = EXCEL_HEADERS.map(header => ({ wch: Math.max(14, Math.min(34, header.length + 3)) }))
     worksheet['!autofilter'] = { ref: worksheet['!ref'] || 'A1' }
@@ -307,13 +353,7 @@ export default function KPIWeekly({ user, signOut }) {
     XLSX.writeFile(workbook, 'KPI_Weekly_preview.xlsx')
   }
 
-  function clearSession() {
-    if (!submissions.length) return
-    if (window.confirm('Clear all KPI entries from this browser session? This cannot be undone.')) {
-      setSubmissions([])
-      setNotice('The temporary session list has been cleared.')
-    }
-  }
+  function clearSession() { loadRecords() }
 
   return (
     <div className="kpi-app">
@@ -323,7 +363,8 @@ export default function KPIWeekly({ user, signOut }) {
           <span>ScriptFlow<small>REPORTING WORKSPACE</small></span>
         </div>
         <div className="kpi-nav-label">REPORTING</div>
-        <div className="kpi-nav-item active"><FileSpreadsheet size={17} /> KPI Weekly</div>
+        <button type="button" className={activeTab === 'records' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('records')}><FileSpreadsheet size={17} /> KPI Migration</button>
+        <button type="button" className={activeTab === 'form' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={startNewRecord}><Plus size={17} /> New KPI record</button>
         <div className="kpi-sidebar-note">
           <span className="kpi-live-dot" />
           Google Sheets mode
@@ -347,29 +388,29 @@ export default function KPIWeekly({ user, signOut }) {
         <div className="kpi-content">
           <div className="kpi-page-heading">
             <div>
-              <span className="kpi-eyebrow">REPORTING FORM</span>
-              <h1>KPI Weekly</h1>
-              <p>Enter project information using the current KPI spreadsheet structure.</p>
+              <span className="kpi-eyebrow">GOOGLE SHEETS · LIVE RECORDS</span>
+              <h1>{activeTab === 'form' ? (editingId ? 'Edit KPI record' : 'New KPI record') : 'KPI Migration'}</h1>
+              <p>{activeTab === 'form' ? 'Enter or update a record in the KPI spreadsheet.' : 'All KPI records currently stored in the Google Sheets migration tab.'}</p>
             </div>
             <div className="kpi-heading-actions">
-              <button type="button" className="kpi-button secondary" onClick={() => { setForm(INITIAL_FORM); setNotice('Form cleared.') }}>
+              {activeTab === 'form' && <button type="button" className="kpi-button secondary" onClick={() => { setForm(INITIAL_FORM); setEditingId(''); setNotice('Form cleared.') }}>
                 <RotateCcw size={16} /> Clear form
-              </button>
-              <button type="button" className="kpi-button primary" onClick={exportExcel} disabled={!submissions.length}>
-                <ArrowDownToLine size={16} /> Export preview
+              </button>}
+              <button type="button" className="kpi-button primary" onClick={exportExcel} disabled={!records.length}>
+                <ArrowDownToLine size={16} /> Export records
               </button>
             </div>
           </div>
 
           <div className="kpi-stats">
-            <div className="kpi-stat-card"><span className="kpi-stat-icon"><FileSpreadsheet size={18} /></span><div><small>Entries this session</small><strong>{submissions.length}</strong></div></div>
-            <div className="kpi-stat-card"><span className="kpi-stat-icon hours"><Activity size={18} /></span><div><small>Estimated hours</small><strong>{submissions.reduce((sum, item) => sum + Number(item.totalEstimatedHours || 0), 0).toFixed(2)}</strong></div></div>
-            <div className="kpi-stat-card"><span className="kpi-stat-icon ready"><CheckCircle2 size={18} /></span><div><small>Mode</small><strong className="kpi-mode-value">Sheet submission</strong></div></div>
+            <div className="kpi-stat-card"><span className="kpi-stat-icon"><FileSpreadsheet size={18} /></span><div><small>Total KPI records</small><strong>{records.length}</strong></div></div>
+            <div className="kpi-stat-card"><span className="kpi-stat-icon hours"><Activity size={18} /></span><div><small>Estimated hours</small><strong>{records.reduce((sum, item) => sum + Number(item.totalEstimatedHours || 0), 0).toFixed(2)}</strong></div></div>
+            <div className="kpi-stat-card"><span className="kpi-stat-icon ready"><CheckCircle2 size={18} /></span><div><small>Data source</small><strong className="kpi-mode-value">Google Sheets</strong></div></div>
           </div>
 
           {notice && <div className={'kpi-notice ' + (notice.indexOf('Google Sheets save failed:') === 0 ? 'error' : '')}><CheckCircle2 size={17} />{notice}</div>}
 
-          <form onSubmit={submitForm}>
+          {activeTab === 'form' && <form onSubmit={submitForm}>
             <div className="kpi-form-layout">
               <div className="kpi-form-column">
                 {FIELD_SECTIONS.map(section => (
@@ -403,7 +444,7 @@ export default function KPIWeekly({ user, signOut }) {
                 ))}
                 <div className="kpi-form-actions">
                   <p><span className="required-mark">*</span> Required field</p>
-                  <button className="kpi-button primary submit" type="submit" disabled={isSaving}>{isSaving ? 'Saving to Google Sheets...' : <><Plus size={17} /> Save to KPI Weekly</>}</button>
+                  <button className="kpi-button primary submit" type="submit" disabled={isSaving}>{isSaving ? (editingId ? 'Updating record...' : 'Saving to Google Sheets...') : <><Plus size={17} /> {editingId ? 'Update KPI record' : 'Save to KPI Weekly'}</>}</button>
                 </div>
               </div>
 
@@ -417,25 +458,25 @@ export default function KPIWeekly({ user, signOut }) {
                   <li>The test link and scripting time are combined into the existing spreadsheet column.</li>
                   <li>A hidden <strong>__ScriptFlow_ID</strong> is used to identify each submitted record.</li>
                 </ul>
-                <div className="kpi-warning"><strong>Connection setup required</strong><span>The Vercel API and Apps Script deployment must both be configured before submissions can reach Google Sheets.</span></div>
+                <div className="kpi-warning"><strong>Existing record protection</strong><span>When you edit a listed record, ScriptFlow reuses its permanent spreadsheet ID so the same row is updated instead of adding a duplicate.</span></div>
               </aside>
             </div>
-          </form>
+          </form>}
 
-          <section className="kpi-submissions">
+          {activeTab === 'records' && <section className="kpi-submissions">
             <div className="kpi-submissions-heading">
-              <div><h2>Recent submissions <span>{submissions.length}</span></h2><p>Submissions made during this page session. The spreadsheet remains the permanent record.</p></div>
+              <div><h2>All KPI records <span>{records.length}</span></h2><p>Live records loaded directly from the KPI Migration spreadsheet tab.</p></div>
               <div className="kpi-submission-actions">
                 <div className="kpi-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search project or client..." /></div>
-                <button type="button" className="kpi-button secondary" onClick={clearSession} disabled={!submissions.length}>Clear session</button>
+                <button type="button" className="kpi-button secondary" onClick={clearSession} disabled={isLoadingRecords}><RefreshCw size={14} /> Refresh</button>
               </div>
             </div>
-            {filteredSubmissions.length ? (
+            {isLoadingRecords ? <div className="kpi-empty"><RefreshCw size={22} /><strong>Loading KPI records...</strong></div> : filteredRecords.length ? (
               <div className="kpi-table-wrap">
                 <table className="kpi-table">
-                  <thead><tr><th>Project name</th><th>Project number</th><th>SPM number</th><th>Tester</th><th>PM</th><th>Status</th><th>Est. hours</th></tr></thead>
-                  <tbody>{filteredSubmissions.map(item => (
-                    <tr key={item.localId}>
+                  <thead><tr><th>Project name</th><th>Project number</th><th>SPM number</th><th>Tester</th><th>PM</th><th>Status</th><th>Est. hours</th><th>Action</th></tr></thead>
+                  <tbody>{filteredRecords.map(item => (
+                    <tr key={item.id || item.sheetRow}>
                       <td><strong>{item.projectName}</strong><small>{item.client || 'No client'}</small></td>
                       <td>{item.projectNumber || '—'}</td>
                       <td>{item.spmProjectNumber || '—'}</td>
@@ -443,14 +484,15 @@ export default function KPIWeekly({ user, signOut }) {
                       <td>{item.pm || '—'}</td>
                       <td><span className="kpi-status">{item.status}</span></td>
                       <td>{Number(item.totalEstimatedHours || 0).toFixed(2)}</td>
+                      <td>{canEdit && item.id ? <button type="button" className="kpi-button secondary kpi-edit-button" onClick={() => editRecord(item)}><Pencil size={13} /> Edit</button> : <span className="kpi-readonly">View only</span>}</td>
                     </tr>
                   ))}</tbody>
                 </table>
               </div>
             ) : (
-              <div className="kpi-empty"><FileSpreadsheet size={24} /><strong>{submissions.length ? 'No matching entries' : 'No entries yet'}</strong><p>{submissions.length ? 'Try another search term.' : 'Complete the form and add your first KPI entry.'}</p></div>
+              <div className="kpi-empty"><FileSpreadsheet size={24} /><strong>{records.length ? 'No matching entries' : 'No KPI records found'}</strong><p>{records.length ? 'Try another search term.' : 'The KPI spreadsheet does not contain any project records yet.'}</p></div>
             )}
-          </section>
+          </section>}
 
           <footer className="kpi-footer">ScriptFlow · KPI Weekly · Google Sheets connection</footer>
         </div>

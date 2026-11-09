@@ -58,6 +58,10 @@ function doPost(e) {
     if (p.operation === 'redeem_auth_token') {
       return json_(redeemAuthToken_(p));
     }
+    if (p.operation === 'list_kpi_records') {
+      var reader = verifyUser_(p.user);
+      return json_(listKpiRecords_(reader));
+    }
     if (p.operation === 'sync_job') {
       var user = verifyUser_(p.user);
       if (user.role !== 'admin' && user.role !== 'team_lead') {
@@ -327,6 +331,92 @@ function fieldForHeader_(header, job) {
   if (!field) return { found: false, value: '' };
   var value = job[field];
   return { found: true, value: value === null || value === undefined ? '' : value };
+}
+
+ 
+function listKpiRecords_(user) {
+  var props = PropertiesService.getScriptProperties();
+  var spreadsheetId = props.getProperty('KPI_SPREADSHEET_ID') || SF.KPI_ID;
+  var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(SF.KPI_TAB);
+  if (!sheet) throw new Error('KPI Weekly worksheet was not found.');
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var lastColumn = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+    var idColumn = headers.indexOf(SF.ID_HEADER) + 1;
+    if (!idColumn) {
+      if (user.role !== 'admin' && user.role !== 'team_lead') {
+        throw new Error('The KPI sheet needs its permanent ID column initialized by a team lead.');
+      }
+      idColumn = lastColumn + 1;
+      sheet.getRange(1, idColumn).setValue(SF.ID_HEADER);
+      sheet.hideColumns(idColumn);
+      headers.push(SF.ID_HEADER);
+    }
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { ok: true, records: [] };
+
+    var range = sheet.getRange(2, 1, lastRow - 1, headers.length);
+    var values = range.getValues();
+    var display = range.getDisplayValues();
+    var ids = [];
+    for (var i = 0; i < values.length; i++) {
+      var hasProjectName = String(display[i][headers.indexOf('Project Name')] || '').trim();
+      if (!hasProjectName) continue;
+      var id = String(display[i][idColumn - 1] || '').trim();
+      if (!id && (user.role === 'admin' || user.role === 'team_lead')) {
+        id = Utilities.getUuid();
+        sheet.getRange(i + 2, idColumn).setValue(id);
+      }
+      ids.push(recordFromSheetRow_(headers, values[i], display[i], id, i + 2));
+    }
+    return { ok: true, records: ids };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function recordFromSheetRow_(headers, values, display, id, rowNumber) {
+  var record = { id: id, sheetRow: rowNumber };
+  var fields = {
+    'sw':'sw', 'project number':'projectNumber',
+    'spm project number':'spmProjectNumber', 'project name':'projectName',
+    'tester':'tester', 'pm':'pm', 'status':'status',
+    'questions':'questions', 'loi':'loi', 'level':'level',
+    'qnr received on':'qnrReceivedOn', 'date sent to qa':'dateSentToQa',
+    'date sent to pm':'dateSentToPm', 'launch date':'launchDate',
+    'changes time hours':'changesTime', 'testing time hours':'testingTime',
+    'mailing time':'mailingTime', 'mailing time hours':'mailingTime',
+    'total estimated hours':'totalEstimatedHours', 'hours worked':'hoursWorked',
+    'commissioning country':'commissioningCountry', 'overlay':'overlay',
+    'price scripting':'priceScripting', 'hours commissioned':'hoursCommissioned',
+    'client':'client', 'bari oe checks':'bariOeChecks',
+    'bari moderations':'bariModerations', 'bari scripting':'bariScripting',
+    'bsurvey':'bsurvey', 'complexity as spm':'complexityAsSpm'
+  };
+  for (var c = 0; c < headers.length; c++) {
+    var key = String(headers[c] || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+    var field = fields[key];
+    if (field) record[field] = sheetValueForForm_(values[c], display[c]);
+    if (key === 'test link scripting time per hrs' || key === 'test link scripting time hrs') {
+      var combined = String(display[c] || '').trim();
+      var match = combined.match(/^(.*?)(?:\s*\|\s*([0-9]+(?:\.[0-9]+)?)\s*hrs?)?$/i);
+      record.testLink = match ? String(match[1] || '').trim() : combined;
+      record.scriptingTime = match && match[2] ? match[2] : '';
+    }
+  }
+  return record;
+}
+
+function sheetValueForForm_(value, display) {
+  if (value instanceof Date) return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (value === null || value === undefined) return '';
+  return String(display === null || display === undefined ? value : display);
 }
 
 /* ----------------------------- Helpers ----------------------------- */
