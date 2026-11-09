@@ -76,11 +76,11 @@ export async function callAppsScript(body) {
   let response
   try {
     response = await fetch(apiUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: signed.rawBody,
-      redirect: 'follow'
-    })
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: signed.rawBody,
+  redirect: 'follow'
+})
   } catch (error) {
     diagnostic('fetch_failed', { operation: body && body.operation ? body.operation : 'unknown' })
     throw new Error('Could not reach the ScriptFlow API Apps Script deployment.')
