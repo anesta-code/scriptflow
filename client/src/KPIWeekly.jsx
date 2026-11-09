@@ -252,12 +252,20 @@ export default function KPIWeekly({ user, signOut }) {
   async function loadRecords() {
     setIsLoadingRecords(true)
     try {
-      const response = await fetch('/api/kpi-weekly/list', {
+      const response = await fetch('/api/kpi-weekly', {
         method: 'POST',
         credentials: 'same-origin',
-        cache: 'no-store'
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list' })
       })
-      const result = await response.json()
+      const responseText = await response.text()
+      let result
+      try {
+        result = JSON.parse(responseText)
+      } catch {
+        throw new Error('Server returned HTTP ' + response.status + ' instead of JSON: ' + responseText.slice(0, 180))
+      }
       if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to load KPI records.')
       setRecords(Array.isArray(result.records) ? result.records : [])
       setNotice('')
