@@ -27,7 +27,7 @@
 var SF = {
   DOMAIN: 'bilendi.com',
   KPI_ID: '1Ew-1cROn4Q2XpEV4t3b5jrgjP3MRUB50MDg6ofpuDQY',
-  KPI_TAB: 'KPI weekly',
+  KPI_TAB: 'KPI Migration',
   ID_HEADER: '__ScriptFlow_ID',
   TOKEN_SECONDS: 120,
   DEFAULT_ROLE: 'scripter',
@@ -242,7 +242,7 @@ function saveKpiRecord_(job) {
   var props = PropertiesService.getScriptProperties();
   var spreadsheetId = props.getProperty('KPI_SPREADSHEET_ID') || SF.KPI_ID;
   var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(SF.KPI_TAB);
-  if (!sheet) throw new Error('KPI Weekly worksheet was not found.');
+  if (!sheet) throw new Error('KPI Migration worksheet was not found.');
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
