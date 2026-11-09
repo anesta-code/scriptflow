@@ -189,7 +189,7 @@ function Field({ field, value, onChange }) {
       <label className="kpi-field">
         <span>{label}{required && <b className="required-mark"> *</b>}</span>
         <select name={name} value={value} onChange={event => onChange(name, event.target.value)} required={required}>
-          {STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+          {value && !STATUS_OPTIONS.includes(value) && <option value={value}>{value}</option>}{STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
     )
