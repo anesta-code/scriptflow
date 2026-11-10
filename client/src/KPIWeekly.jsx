@@ -430,7 +430,6 @@ export default function KPIWeekly({ user, signOut }) {
 
   function clearSession() { loadRecords() }
 
-  if (activeTab === 'registered-form' && selectedForm) return <DynamicFormPage key={selectedForm.id} form={selectedForm} user={user} onBack={() => { setSelectedFormId(''); setSelectedForm(null); setActiveTab('records'); loadAvailableForms() }} />
   if (activeTab === 'workspace' && user?.role === 'admin') return <FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms() }} />
 
   return (
@@ -446,7 +445,7 @@ export default function KPIWeekly({ user, signOut }) {
         <div className="kpi-available-forms">
           <div className="kpi-available-forms-heading">AVAILABLE FORMS</div>
           {isLoadingForms ? <div className="kpi-forms-loading">Loading forms…</div> : availableForms.length ? availableForms.map(item => (
-            <button type="button" key={item.id} className="kpi-form-nav-item" onClick={() => openRegisteredForm(item)} title={item.name}>
+            <button type="button" key={item.id} className={selectedFormId === item.id && activeTab === 'registered-form' ? 'kpi-form-nav-item active' : 'kpi-form-nav-item'} onClick={() => openRegisteredForm(item)} title={item.name}>
               <FileSpreadsheet size={15} /><span>{item.name}</span>
             </button>
           )) : <div className="kpi-forms-loading">No forms added yet.</div>}
@@ -472,7 +471,7 @@ export default function KPIWeekly({ user, signOut }) {
           </div>
         </header>
 
-        <div className="kpi-content">
+        {activeTab === 'registered-form' && selectedForm ? <DynamicFormPage key={selectedForm.id} form={selectedForm} user={user} /> : <div className="kpi-content">
           <div className="kpi-page-heading">
             <div>
               <span className="kpi-eyebrow">GOOGLE SHEETS · LIVE RECORDS</span>
@@ -586,7 +585,7 @@ export default function KPIWeekly({ user, signOut }) {
           </section>}
 
           <footer className="kpi-footer">ScriptFlow · KPI Weekly · Google Sheets connection</footer>
-        </div>
+        </div>}
       </main>
     </div>
   )
