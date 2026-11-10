@@ -31,6 +31,8 @@ export default async function handler(req, res) {
       operation = 'deactivate_form'; payload.formId = body.formId; break
     case 'list-records':
       operation = 'list_form_records'; payload.formId = body.formId; break
+    case 'list-projects':
+      operation = 'list_kpi_projects'; break
     case 'save-record':
       if (!['scripter', 'team_lead', 'admin'].includes(session.role)) return res.status(403).json({ ok: false, error: 'You cannot save records.' })
       operation = 'save_form_record'; payload.formId = body.formId; payload.record = body.record; break
