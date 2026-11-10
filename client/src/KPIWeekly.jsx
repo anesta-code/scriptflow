@@ -226,7 +226,7 @@ export default function KPIWeekly({ user, signOut }) {
   const [activeTab, setActiveTab] = useState('records')
   const [editingId, setEditingId] = useState('')
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
-  const canEdit = Boolean(user && (user.role === 'admin' || user.role === 'team_lead'))
+  const canEdit = Boolean(user && (user.role === 'admin' || user.role === 'team_lead' || user.role === 'scripter'))
   const [notice, setNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
