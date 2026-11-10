@@ -23,8 +23,42 @@ export default function DynamicFormPage({ form, user }) {
   const [busy, setBusy] = useState(false)
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
+  const [projects, setProjects] = useState([])
+  const [projectSearch, setProjectSearch] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [projectsLoading, setProjectsLoading] = useState(false)
   const canDelete = ['team_lead', 'admin'].includes(user?.role)
   const fields = Array.isArray(form.fields) ? form.fields : []
+  const mappedFields = fields.filter(field => field.projectKey)
+  const usesProjectReference = mappedFields.length > 0
+  const filteredProjects = projects.filter(project => [project.projectNumber, project.spmProjectNumber, project.projectName, project.client].some(value => String(value || '').toLowerCase().includes(projectSearch.trim().toLowerCase())))
+
+  function valueForProjectKey(project, key) {
+    const values = { project_number: project.projectNumber, spm_project_number: project.spmProjectNumber, project_name: project.projectName, complexity: project.complexity, client: project.client, pm: project.pm, tester: project.tester }
+    return values[key] ?? ''
+  }
+
+  async function loadProjects() {
+    setProjectsLoading(true)
+    try {
+      const result = await request('list-projects')
+      setProjects(result.projects || [])
+    } catch (error) {
+      setNotice('Could not load KPI Migration projects: ' + error.message)
+    } finally {
+      setProjectsLoading(false)
+    }
+  }
+
+  function chooseProject(project) {
+    setSelectedProjectId(project.id)
+    setProjectSearch(project.projectName || project.projectNumber || project.spmProjectNumber || '')
+    setValues(previous => {
+      const next = { ...previous }
+      mappedFields.forEach(field => { next[field.name] = valueForProjectKey(project, field.projectKey) })
+      return next
+    })
+  }
 
   async function loadRecords() {
     setBusy(true)
@@ -54,15 +88,22 @@ export default function DynamicFormPage({ form, user }) {
     fields.forEach(field => { next[field.name] = '' })
     setValues(next)
     setEditingId('')
+    setSelectedProjectId('')
+    setProjectSearch('')
     setIsEditing(true)
     setNotice('')
+    if (usesProjectReference) loadProjects()
   }
 
   function startEdit(record) {
     setValues({ ...(record.values || {}) })
     setEditingId(record.id)
+    setSelectedProjectId(record.projectId || '')
+    const identifierField = mappedFields.find(field => field.projectKey === 'project_number') || mappedFields.find(field => field.projectKey === 'spm_project_number') || mappedFields.find(field => field.projectKey === 'project_name')
+    setProjectSearch(identifierField ? String(record.values?.[identifierField.name] || '') : '')
     setIsEditing(true)
     setNotice('')
+    if (usesProjectReference) loadProjects()
   }
 
   async function saveRecord(event) {
@@ -72,7 +113,7 @@ export default function DynamicFormPage({ form, user }) {
     try {
       const result = await request('save-record', {
         formId: form.id,
-        record: { id: editingId, values }
+        record: { id: editingId, values, projectId: selectedProjectId }
       })
       setIsEditing(false)
       setEditingId('')
@@ -111,15 +152,20 @@ export default function DynamicFormPage({ form, user }) {
       {isEditing ? (
         <form className="dfp-editor" onSubmit={saveRecord}>
           <div className="dfp-editor-heading"><div><h2>{editingId ? 'Edit record' : 'New record'}</h2><p>Complete the fields below. Required fields are marked with *.</p></div></div>
+          {usesProjectReference && <section className="dfp-project-picker">
+            <div><h3>Select a KPI Migration project</h3><p>Search by Project Number, SPM Project Number or Project Name. Mapped fields will be filled automatically.</p></div>
+            <input type="search" value={projectSearch} onChange={event => setProjectSearch(event.target.value)} placeholder="Search project number, SPM number or name…" />
+            {projectsLoading ? <p>Loading KPI projects…</p> : <div className="dfp-project-results">{filteredProjects.slice(0, 30).map(project => <button type="button" key={project.id} className={selectedProjectId === project.id ? 'selected' : ''} onClick={() => chooseProject(project)}><strong>{project.projectName || 'Unnamed project'}</strong><span>Project: {project.projectNumber || '—'} · SPM: {project.spmProjectNumber || '—'}</span></button>)}{!filteredProjects.length && <p>No matching projects found.</p>}</div>}
+          </section>}
           <div className="dfp-fields">
-            {fields.map(field => <label className="dfp-field" key={field.name}>
+            {fields.map(field => <label className={'dfp-field ' + (field.projectKey ? 'dfp-mapped-field' : '')} key={field.name}>
               <span>{field.name}{field.required ? ' *' : ''}</span>
               {field.type === 'textarea'
-                ? <textarea rows="3" required={Boolean(field.required)} value={values[field.name] ?? ''} onChange={event => setValues(previous => ({...previous,[field.name]:event.target.value}))}/>
-                : <input type={['date','email','url','number'].includes(field.type) ? field.type : 'text'} required={Boolean(field.required)} value={values[field.name] ?? ''} onChange={event => setValues(previous => ({...previous,[field.name]:event.target.value}))}/>}
+                ? <textarea rows="3" required={Boolean(field.required)} value={values[field.name] ?? ''} readOnly={Boolean(field.projectKey)} onChange={event => setValues(previous => ({...previous,[field.name]:event.target.value}))}/>
+                : <input type={['date','email','url','number'].includes(field.type) ? field.type : 'text'} required={Boolean(field.required)} value={values[field.name] ?? ''} readOnly={Boolean(field.projectKey)} onChange={event => setValues(previous => ({...previous,[field.name]:event.target.value}))}/>}
             </label>)}
           </div>
-          <div className="dfp-actions"><button type="button" className="kpi-button secondary" onClick={() => setIsEditing(false)}>Cancel</button><button className="kpi-button primary" disabled={busy}><Save size={15}/>{busy ? 'Saving…' : editingId ? 'Update record' : 'Save record'}</button></div>
+          <div className="dfp-actions"><button type="button" className="kpi-button secondary" onClick={() => setIsEditing(false)}>Cancel</button><button className="kpi-button primary" disabled={busy || (usesProjectReference && !selectedProjectId)}><Save size={15}/>{busy ? 'Saving…' : editingId ? 'Update record' : 'Save record'}</button></div>
         </form>
       ) : (
         <section className="kpi-submissions">

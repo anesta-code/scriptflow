@@ -62,6 +62,10 @@ function doPost(e) {
       var reader = verifyUser_(p.user);
       return json_(listKpiRecords_(reader));
     }
+    if (p.operation === 'list_kpi_projects') {
+      var projectReader = verifyUser_(p.user);
+      return json_(listKpiProjects_(projectReader));
+    }
     if (p.operation === 'sync_job') {
       var writer = verifyUser_(p.user);
       requireRole_(writer, ['scripter', 'team_lead', 'admin'], 'You do not have permission to create or edit records.');
@@ -456,6 +460,28 @@ function sheetValueForForm_(value, display) {
   return String(display === null || display === undefined ? value : display);
 }
 
+function listKpiProjects_(user) {
+  var result = listKpiRecords_(user);
+  var projects = (result.records || []).map(function(record) {
+    return { id: record.id, projectNumber: record.projectNumber || '', spmProjectNumber: record.spmProjectNumber || '', projectName: record.projectName || '', complexity: record.complexityAsSpm || '', client: record.client || '', pm: record.pm || '', tester: record.tester || '' };
+  }).filter(function(project) { return String(project.projectNumber).trim() || String(project.spmProjectNumber).trim(); });
+  return { ok: true, projects: projects };
+}
+
+function findKpiProjectById_(projectId) {
+  var result = listKpiRecords_({});
+  for (var i = 0; i < (result.records || []).length; i++) if (String(result.records[i].id) === String(projectId || '')) return result.records[i];
+  throw new Error('The selected KPI project could not be found. Refresh the project list and select it again.');
+}
+
+function projectValueForKey_(project, key) {
+  var map = { project_number: 'projectNumber', spm_project_number: 'spmProjectNumber', project_name: 'projectName', complexity: 'complexityAsSpm', client: 'client', pm: 'pm', tester: 'tester' };
+  var field = map[key];
+  if (!field) throw new Error('Unsupported KPI project field key: ' + key);
+  var value = project[field];
+  return value === null || value === undefined ? '' : value;
+}
+
 
 /* ----------------------- Record deletion --------------------------- */
 
@@ -495,6 +521,8 @@ function deleteKpiRecord_(recordId) {
 
 var SF_FORMS_PROPERTY = 'SCRIPT_FLOW_FORMS';
 var SF_FORM_ID_HEADER = '__ScriptFlow_ID';
+var SF_FORM_PROJECT_HEADER = '__ScriptFlow_Project_ID';
+var SF_PROJECT_FIELD_KEYS = ['project_number', 'spm_project_number', 'project_name', 'complexity', 'client', 'pm', 'tester'];
 
 function readFormRegistry_() {
   var props = PropertiesService.getScriptProperties();
@@ -575,6 +603,21 @@ function readFormHeaders_(sheet, headerRow) {
   return result;
 }
 
+function applyProjectFieldMappings_(fields, mappings, previousFields) {
+  var previous = {};
+  (previousFields || []).forEach(function(field) { previous[field.name] = field.projectKey || ''; });
+  var supplied = mappings && typeof mappings === 'object' ? mappings : {};
+  fields.forEach(function(field) {
+    var key = Object.prototype.hasOwnProperty.call(supplied, field.name) ? String(supplied[field.name] || '') : (previous[field.name] || '');
+    if (key && SF_PROJECT_FIELD_KEYS.indexOf(key) < 0) throw new Error('Unsupported KPI project field key: ' + key);
+    if (key) field.projectKey = key;
+  });
+}
+
+function formHasProjectMappings_(form) {
+  return (form.fields || []).some(function(field) { return Boolean(field.projectKey); });
+}
+
 function listForms_(user) {
   var forms = readFormRegistry_().filter(function(form) { return form.active !== false; });
   return { ok: true, forms: forms.map(function(form) {
@@ -595,6 +638,7 @@ function addForm_(input, user) {
     createdAt: new Date().toISOString(), createdBy: user.email, updatedAt: new Date().toISOString()
   };
   form.fields = readFormHeaders_(getFormSheet_(form), headerRow);
+  applyProjectFieldMappings_(form.fields, input.fieldMappings);
   var forms = readFormRegistry_();
   if (forms.some(function(item) { return item.active !== false && item.spreadsheetId === spreadsheetId && item.sheetName === sheetName; })) {
     throw new Error('This spreadsheet worksheet is already registered as an active ScriptFlow form.');
@@ -619,7 +663,9 @@ function updateForm_(input, user) {
   if (input.headerRow !== undefined) form.headerRow = Number(input.headerRow);
   if (!form.sheetName) throw new Error('A worksheet tab name is required.');
   if (!Number.isInteger(form.headerRow) || form.headerRow < 1 || form.headerRow > 100) throw new Error('Header row must be between 1 and 100.');
+  var previousFields = form.fields || [];
   form.fields = readFormHeaders_(getFormSheet_(form), form.headerRow);
+  applyProjectFieldMappings_(form.fields, input.fieldMappings, previousFields);
   form.updatedAt = new Date().toISOString();
   form.updatedBy = user.email;
   writeFormRegistry_(forms);
@@ -650,6 +696,14 @@ function activeForm_(formId) {
   throw new Error('This form is no longer active in ScriptFlow.');
 }
 
+function ensureFormProjectColumn_(sheet, headerRow) {
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(headerRow, 1, 1, lastColumn).getDisplayValues()[0];
+  var column = headers.indexOf(SF_FORM_PROJECT_HEADER) + 1;
+  if (!column) { column = lastColumn + 1; sheet.getRange(headerRow, column).setValue(SF_FORM_PROJECT_HEADER); sheet.hideColumns(column); }
+  return column;
+}
+
 function ensureFormIdColumn_(sheet, headerRow) {
   var lastColumn = Math.max(sheet.getLastColumn(), 1);
   var headers = sheet.getRange(headerRow, 1, 1, lastColumn).getDisplayValues()[0];
@@ -676,6 +730,7 @@ function listFormRecords_(formId, user) {
   lock.waitLock(20000);
   try {
     var idColumn = ensureFormIdColumn_(sheet, form.headerRow);
+    var projectColumn = formHasProjectMappings_(form) ? ensureFormProjectColumn_(sheet, form.headerRow) : 0;
     var lastRow = sheet.getLastRow();
     if (lastRow <= form.headerRow) return { ok: true, records: [] };
     var lastColumn = Math.max(sheet.getLastColumn(), idColumn);
@@ -696,7 +751,7 @@ function listFormRecords_(formId, user) {
       form.fields.forEach(function(field, index) {
         recordValues[field.name] = sheetValueForForm_(values[r][columns[index] - 1], display[r][columns[index] - 1]);
       });
-      records.push({ id: id, sheetRow: form.headerRow + 1 + r, values: recordValues });
+      records.push({ id: id, projectId: projectColumn ? String(display[r][projectColumn - 1] || '').trim() : '', sheetRow: form.headerRow + 1 + r, values: recordValues });
     }
     return { ok: true, records: records };
   } finally { lock.releaseLock(); }
@@ -705,11 +760,18 @@ function listFormRecords_(formId, user) {
 function saveFormRecord_(formId, record) {
   var form = activeForm_(formId);
   if (!record || !record.values || typeof record.values !== 'object') throw new Error('Form record values are required.');
+  var projectColumn = 0;
+  if (formHasProjectMappings_(form)) {
+    if (!record.projectId) throw new Error('Select a KPI Migration project before saving this form.');
+    var selectedProject = findKpiProjectById_(record.projectId);
+    form.fields.forEach(function(field) { if (field.projectKey) record.values[field.name] = projectValueForKey_(selectedProject, field.projectKey); });
+  }
   var sheet = getFormSheet_(form);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     var idColumn = ensureFormIdColumn_(sheet, form.headerRow);
+    if (formHasProjectMappings_(form)) projectColumn = ensureFormProjectColumn_(sheet, form.headerRow);
     var lastRow = sheet.getLastRow();
     var target = 0;
     if (record.id && lastRow > form.headerRow) {
@@ -726,6 +788,7 @@ function saveFormRecord_(formId, record) {
     });
     var id = record.id || Utilities.getUuid();
     sheet.getRange(target, idColumn).setValue(id);
+    if (projectColumn) sheet.getRange(target, projectColumn).setValue(record.projectId);
     return { ok: true, action: action, id: id, row: target };
   } finally { lock.releaseLock(); }
 }
