@@ -99,3 +99,7 @@
 .kpi-edit-button{padding:7px 10px;font-size:10px;white-space:nowrap}
 .kpi-readonly{font-size:10px;color:#9aa3b2}
 .kpi-table th:last-child,.kpi-table td:last-child{width:90px}
+
+.kpi-record-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.kpi-button.danger{background:#fff1f1;border:1px solid #f4d0d0;color:#a83a3a}
+.kpi-button.danger:hover{background:#ffe6e6}

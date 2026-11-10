@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import './KPIWeekly.css'
+import FormsWorkspace from './FormsWorkspace'
 
 const STATUS_OPTIONS = [
   'New', 'QNR check', 'Ready', 'In progress', 'QA review',
@@ -226,7 +227,9 @@ export default function KPIWeekly({ user, signOut }) {
   const [activeTab, setActiveTab] = useState('records')
   const [editingId, setEditingId] = useState('')
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
-  const canEdit = Boolean(user && (user.role === 'admin' || user.role === 'team_lead' || user.role === 'scripter'))
+  const canEdit = Boolean(user && ['admin', 'team_lead', 'scripter'].includes(user.role))
+  const canDelete = Boolean(user && ['admin', 'team_lead'].includes(user.role))
+  const [deletingId, setDeletingId] = useState('')
   const [notice, setNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -350,6 +353,29 @@ export default function KPIWeekly({ user, signOut }) {
     }
   }
 
+  async function deleteRecord(record) {
+    if (!canDelete || !record.id) return
+    const confirmed = window.confirm('Delete this KPI record from the KPI weekly spreadsheet? This action cannot be undone.')
+    if (!confirmed) return
+    setDeletingId(record.id)
+    setNotice('')
+    try {
+      const response = await fetch('/api/kpi-weekly', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: record.id })
+      })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to delete the KPI record.')
+      await loadRecords()
+      setNotice('KPI record deleted from the KPI weekly spreadsheet.')
+    } catch (error) {
+      setNotice('Could not delete KPI record: ' + error.message)
+    } finally {
+      setDeletingId('')
+    }
+  }
   function exportExcel() {
     if (!records.length) return
     const rows = records.map(buildExcelRow)
@@ -363,6 +389,8 @@ export default function KPIWeekly({ user, signOut }) {
 
   function clearSession() { loadRecords() }
 
+  if (activeTab === 'forms') return <FormsWorkspace user={user} onBack={() => setActiveTab('records')} />
+
   return (
     <div className="kpi-app">
       <aside className="kpi-sidebar">
@@ -373,6 +401,7 @@ export default function KPIWeekly({ user, signOut }) {
         <div className="kpi-nav-label">REPORTING</div>
         <button type="button" className={activeTab === 'records' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('records')}><FileSpreadsheet size={17} /> KPI Migration</button>
         <button type="button" className={activeTab === 'form' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={startNewRecord}><Plus size={17} /> New KPI record</button>
+        <button type="button" className={activeTab === 'forms' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('forms')}><ClipboardList size={17} /> Forms workspace</button>
         <div className="kpi-sidebar-note">
           <span className="kpi-live-dot" />
           Google Sheets mode
@@ -492,7 +521,11 @@ export default function KPIWeekly({ user, signOut }) {
                       <td>{item.pm || '—'}</td>
                       <td><span className="kpi-status">{item.status}</span></td>
                       <td>{Number(item.totalEstimatedHours || 0).toFixed(2)}</td>
-                      <td>{canEdit && item.id ? <button type="button" className="kpi-button secondary kpi-edit-button" onClick={() => editRecord(item)}><Pencil size={13} /> Edit</button> : <span className="kpi-readonly">View only</span>}</td>
+                      <td className="kpi-record-actions">
+                        {canEdit && item.id && <button type="button" className="kpi-button secondary kpi-edit-button" onClick={() => editRecord(item)}><Pencil size={13} /> Edit</button>}
+                        {canDelete && item.id && <button type="button" className="kpi-button danger kpi-edit-button" onClick={() => deleteRecord(item)} disabled={deletingId === item.id}>{deletingId === item.id ? 'Deleting…' : 'Delete'}</button>}
+                        {!canEdit && <span className="kpi-readonly">View only</span>}
+                      </td>
                     </tr>
                   ))}</tbody>
                 </table>
