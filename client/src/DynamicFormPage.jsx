@@ -164,7 +164,7 @@ export default function DynamicFormPage({ form, user }) {
                 : <input type={['date','email','url','number'].includes(field.type) ? field.type : 'text'} required={Boolean(field.required)} value={values[field.name] ?? ''} readOnly={Boolean(field.projectKey)} onChange={event => setValues(previous => ({...previous,[field.name]:event.target.value}))}/>}
             </label>)}
           </div>
-          <div className="dfp-actions"><button type="button" className="kpi-button secondary" onClick={() => setIsEditing(false)}>Cancel</button><button className="kpi-button primary" disabled={busy}><Save size={15}/>{busy ? 'Saving…' : editingId ? 'Update record' : 'Save record'}</button></div>
+          <div className="dfp-actions"><button type="button" className="kpi-button secondary" onClick={() => setIsEditing(false)}>Cancel</button><button className="kpi-button primary" disabled={busy || (usesProjectReference && !selectedProjectId)}><Save size={15}/>{busy ? 'Saving…' : editingId ? 'Update record' : 'Save record'}</button></div>
         </form>
       ) : (
         <section className="kpi-submissions">
