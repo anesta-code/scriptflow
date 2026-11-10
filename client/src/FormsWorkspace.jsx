@@ -124,7 +124,8 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
     try {
       const result = await request('save-record', { formId: selected.id, record: { id: editingId, values: recordDraft } })
       setRecordEditor(false); setEditingId('')
-      await loadRecords(selected)
+      invalidateCachedData(scriptFlowCacheKeys.formRecords(user?.email, selected.id))
+      await loadRecords(selected, { force: true })
       setNotice((result.action === 'updated' ? 'Record updated.' : 'Record created.') + ' Spreadsheet row ' + result.row + '.')
     } catch (error) { setNotice(error.message) }
     finally { setBusy(false) }
