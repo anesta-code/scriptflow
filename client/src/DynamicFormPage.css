@@ -13,3 +13,34 @@
 .dfp-field input:focus-visible,.dfp-field textarea:focus-visible{outline:0}
 
 .dfp-project-picker{display:grid;gap:10px;padding:18px;background:#f8faff;border:1px solid #dfe7f5;border-radius:12px}.dfp-project-picker h3{margin:0 0 5px;color:#1c2c45;font-size:14px}.dfp-project-picker p{margin:0;color:#718096;font-size:12px}.dfp-project-picker>input{width:100%;box-sizing:border-box;border:1px solid #d9e0ea;border-radius:7px;padding:11px 12px;font:inherit;background:#fff}.dfp-project-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:260px;overflow:auto}.dfp-project-results button{display:grid;gap:4px;text-align:left;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer}.dfp-project-results button.selected{border-color:#5274dc;background:#eef3ff;box-shadow:0 0 0 1px #5274dc}.dfp-project-results strong{font-size:12px;color:#26354d}.dfp-project-results span{font-size:10px;color:#748198}.dfp-mapped-field input,.dfp-mapped-field textarea{background:#f4f6fa;color:#56647a;cursor:not-allowed}.dfp-project-picker>input:focus{outline:2px solid #c9d8f2;border-color:#829fcf}@media(max-width:700px){.dfp-project-results{grid-template-columns:1fr}}
+
+
+/* Dynamic form responsive polish */
+.dfp-editor,.dfp-fields,.dfp-project-picker,.dfp-project-results{min-width:0}
+.dfp-fields{border-radius:13px;gap:16px}
+.dfp-field{min-width:0;line-height:1.4}
+.dfp-field input,.dfp-field textarea,.dfp-project-picker>input{min-width:0;min-height:42px}
+.dfp-field textarea{resize:vertical}
+.dfp-project-results{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.dfp-project-results button{min-width:0;transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease}
+.dfp-project-results button:hover{border-color:#aabbed;background:#f8faff}
+.dfp-project-results button:focus-visible{outline:3px solid #3159d955;outline-offset:2px}
+.dfp-mapped-field input,.dfp-mapped-field textarea{overflow-wrap:anywhere}
+.dfp-actions .kpi-button{min-height:40px}
+@media(max-width:900px){
+  .dfp-fields{gap:13px;padding:17px}
+  .dfp-project-results{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+  .dfp-editor{gap:14px}
+  .dfp-fields{grid-template-columns:1fr;padding:15px}
+  .dfp-project-picker{padding:15px}
+  .dfp-actions{width:100%}
+  .dfp-actions button{flex:1}
+}
+@media(max-width:420px){
+  .dfp-editor-heading h2{font-size:17px}
+  .dfp-fields{padding:12px}
+  .dfp-project-picker{padding:12px}
+  .dfp-actions{display:grid;grid-template-columns:1fr}
+}
