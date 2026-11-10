@@ -103,3 +103,12 @@
 .kpi-record-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .kpi-button.danger{background:#fff1f1;border:1px solid #f4d0d0;color:#a83a3a}
 .kpi-button.danger:hover{background:#ffe6e6}
+
+/* Registered forms shown directly below New KPI record in the Reporting sidebar. */
+.kpi-available-forms{margin:3px 0 8px;padding:8px 0 8px 12px;border-left:1px solid #35445e}
+.kpi-available-forms-heading{padding:2px 8px 7px;color:#8f9db4;font-size:9px;font-weight:800;letter-spacing:1.1px}
+.kpi-form-nav-item{width:100%;min-height:35px;display:flex;align-items:center;gap:9px;padding:7px 9px;border:0;border-radius:7px;background:transparent;color:#cbd5e5;text-align:left;font-size:11px;font-weight:600;cursor:pointer}
+.kpi-form-nav-item:hover{background:#243452;color:#fff}
+.kpi-form-nav-item svg{flex:0 0 auto;color:#91a8d5}
+.kpi-form-nav-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kpi-forms-loading{padding:5px 8px;color:#8f9db4;font-size:10px}
