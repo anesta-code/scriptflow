@@ -19,6 +19,7 @@ export default function DynamicFormPage({ form, user }) {
   const [records, setRecords] = useState([])
   const [values, setValues] = useState({})
   const [editingId, setEditingId] = useState('')
+  const [editingRevision, setEditingRevision] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [search, setSearch] = useState('')
@@ -102,6 +103,7 @@ export default function DynamicFormPage({ form, user }) {
     fields.forEach(field => { next[field.name] = '' })
     setValues(next)
     setEditingId('')
+    setEditingRevision('')
     setSelectedProjectId('')
     setProjectSearch('')
     setIsEditing(true)
@@ -111,6 +113,7 @@ export default function DynamicFormPage({ form, user }) {
   function startEdit(record) {
     setValues({ ...(record.values || {}) })
     setEditingId(record.id)
+    setEditingRevision(record.revision || '')
     setSelectedProjectId(record.projectId || '')
     const identifierField = mappedFields.find(field => field.projectKey === 'project_number') || mappedFields.find(field => field.projectKey === 'spm_project_number') || mappedFields.find(field => field.projectKey === 'project_name')
     setProjectSearch(identifierField ? String(record.values?.[identifierField.name] || '') : '')
@@ -125,10 +128,11 @@ export default function DynamicFormPage({ form, user }) {
     try {
       const result = await request('save-record', {
         formId: form.id,
-        record: { id: editingId, values, projectId: selectedProjectId }
+        record: { id: editingId, revision: editingRevision, values, projectId: selectedProjectId }
       })
       setIsEditing(false)
       setEditingId('')
+      setEditingRevision('')
       await loadRecords()
       setNotice((result.action === 'updated' ? 'Record updated.' : 'New record added.') +
         (result.row ? ' Spreadsheet row ' + result.row + '.' : ''))
