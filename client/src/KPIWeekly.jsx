@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
   Activity, ArrowDownToLine, CheckCircle2, ClipboardList, FileSpreadsheet,
   Plus, RotateCcw, Search, Pencil, RefreshCw
 } from 'lucide-react'
-import * as XLSX from 'xlsx'
 import './KPIWeekly.css'
-import FormsWorkspace from './FormsWorkspace'
+const FormsWorkspace = lazy(() => import('./FormsWorkspace'))
 import DynamicFormPage from './DynamicFormPage'
 
 const STATUS_OPTIONS = [
@@ -417,20 +416,25 @@ export default function KPIWeekly({ user, signOut }) {
       setDeletingId('')
     }
   }
-  function exportExcel() {
+  async function exportExcel() {
     if (!records.length) return
-    const rows = records.map(buildExcelRow)
-    const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXCEL_HEADERS })
-    worksheet['!cols'] = EXCEL_HEADERS.map(header => ({ wch: Math.max(14, Math.min(34, header.length + 3)) }))
-    worksheet['!autofilter'] = { ref: worksheet['!ref'] || 'A1' }
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'KPI weekly')
-    XLSX.writeFile(workbook, 'KPI_Weekly_preview.xlsx')
+    try {
+      const XLSX = await import('xlsx')
+      const rows = records.map(buildExcelRow)
+      const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXCEL_HEADERS })
+      worksheet['!cols'] = EXCEL_HEADERS.map(header => ({ wch: Math.max(14, Math.min(34, header.length + 3)) }))
+      worksheet['!autofilter'] = { ref: worksheet['!ref'] || 'A1' }
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'KPI weekly')
+      XLSX.writeFile(workbook, 'KPI_Weekly_preview.xlsx')
+    } catch (error) {
+      setNotice('Could not export KPI records: ' + error.message)
+    }
   }
 
   function clearSession() { loadRecords() }
 
-  if (activeTab === 'workspace' && user?.role === 'admin') return <FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms() }} />
+  if (activeTab === 'workspace' && user?.role === 'admin') return <Suspense fallback={<div className="kpi-loading-view">Loading Forms Workspace…</div>}><FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms() }} /></Suspense>
 
   return (
     <div className="kpi-app">
