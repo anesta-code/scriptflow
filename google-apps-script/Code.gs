@@ -497,8 +497,18 @@ var SF_FORMS_PROPERTY = 'SCRIPT_FLOW_FORMS';
 var SF_FORM_ID_HEADER = '__ScriptFlow_ID';
 
 function readFormRegistry_() {
-  var raw = PropertiesService.getScriptProperties().getProperty(SF_FORMS_PROPERTY);
-  if (!raw) return [];
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(SF_FORMS_PROPERTY);
+  if (!raw) {
+    var count = Number(props.getProperty(SF_FORMS_PROPERTY + '_CHUNKS') || 0);
+    if (!count) return [];
+    raw = '';
+    for (var i = 0; i < count; i++) {
+      var part = props.getProperty(SF_FORMS_PROPERTY + '_' + i);
+      if (part === null) throw new Error('The ScriptFlow form registry is incomplete. Contact the admin.');
+      raw += part;
+    }
+  }
   var forms;
   try { forms = JSON.parse(raw); }
   catch (e) { throw new Error('SCRIPT_FLOW_FORMS contains invalid JSON. Contact the ScriptFlow admin.'); }
@@ -507,9 +517,18 @@ function readFormRegistry_() {
 }
 
 function writeFormRegistry_(forms) {
+  var props = PropertiesService.getScriptProperties();
   var raw = JSON.stringify(forms);
-  if (raw.length > 8500) throw new Error('The form registry is too large for Script Properties. Reduce the number of forms or header fields.');
-  PropertiesService.getScriptProperties().setProperty(SF_FORMS_PROPERTY, raw);
+  var chunkSize = 7000;
+  var chunks = [];
+  for (var i = 0; i < raw.length; i += chunkSize) chunks.push(raw.substring(i, i + chunkSize));
+  var oldCount = Number(props.getProperty(SF_FORMS_PROPERTY + '_CHUNKS') || 0);
+  var updates = {};
+  chunks.forEach(function(part, index) { updates[SF_FORMS_PROPERTY + '_' + index] = part; });
+  updates[SF_FORMS_PROPERTY + '_CHUNKS'] = String(chunks.length);
+  props.setProperties(updates, false);
+  for (var j = chunks.length; j < oldCount; j++) props.deleteProperty(SF_FORMS_PROPERTY + '_' + j);
+  props.deleteProperty(SF_FORMS_PROPERTY);
 }
 
 function parseSpreadsheetId_(url) {
