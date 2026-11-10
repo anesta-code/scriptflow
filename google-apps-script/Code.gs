@@ -27,13 +27,13 @@
 var SF = {
   DOMAIN: 'bilendi.com',
   KPI_ID: '1Ew-1cROn4Q2XpEV4t3b5jrgjP3MRUB50MDg6ofpuDQY',
-  KPI_TAB: 'KPI Migration',
+  KPI_TAB: 'KPI weekly',
   ID_HEADER: '__ScriptFlow_ID',
   TOKEN_SECONDS: 120,
   DEFAULT_ROLE: 'scripter',
   ROLES: {
-    'a.nesta@bilendi.com': 'team_lead',
-    'g.sardoo@bilendi.com': 'scripter',
+    'a.nesta@bilendi.com': 'admin',
+    'g.sardoo@bilendi.com': 'team_lead',
     'n.latreille@bilendi.com': 'scripter'
   }
 };
@@ -63,11 +63,47 @@ function doPost(e) {
       return json_(listKpiRecords_(reader));
     }
     if (p.operation === 'sync_job') {
-      var user = verifyUser_(p.user);
-      if (user.role !== 'admin' && user.role !== 'team_lead') {
-        throw new Error('Only team leads can submit KPI records.');
-      }
+      var writer = verifyUser_(p.user);
+      requireRole_(writer, ['scripter', 'team_lead', 'admin'], 'You do not have permission to create or edit records.');
       return json_(saveKpiRecord_(p.job));
+    }
+    if (p.operation === 'delete_kpi_record') {
+      var deleter = verifyUser_(p.user);
+      requireRole_(deleter, ['team_lead', 'admin'], 'Only team leaders and admins can delete records.');
+      return json_(deleteKpiRecord_(p.id));
+    }
+    if (p.operation === 'list_forms') {
+      var formReader = verifyUser_(p.user);
+      return json_(listForms_(formReader));
+    }
+    if (p.operation === 'add_form') {
+      var formAdmin = verifyUser_(p.user);
+      requireRole_(formAdmin, ['admin'], 'Only admins can add forms.');
+      return json_(addForm_(p.form, formAdmin));
+    }
+    if (p.operation === 'update_form') {
+      var updateAdmin = verifyUser_(p.user);
+      requireRole_(updateAdmin, ['admin'], 'Only admins can update forms.');
+      return json_(updateForm_(p.form, updateAdmin));
+    }
+    if (p.operation === 'deactivate_form') {
+      var removeAdmin = verifyUser_(p.user);
+      requireRole_(removeAdmin, ['admin'], 'Only admins can remove forms.');
+      return json_(deactivateForm_(p.formId, removeAdmin));
+    }
+    if (p.operation === 'list_form_records') {
+      var formRecordReader = verifyUser_(p.user);
+      return json_(listFormRecords_(p.formId, formRecordReader));
+    }
+    if (p.operation === 'save_form_record') {
+      var formRecordWriter = verifyUser_(p.user);
+      requireRole_(formRecordWriter, ['scripter', 'team_lead', 'admin'], 'You do not have permission to create or edit records.');
+      return json_(saveFormRecord_(p.formId, p.record));
+    }
+    if (p.operation === 'delete_form_record') {
+      var formRecordDeleter = verifyUser_(p.user);
+      requireRole_(formRecordDeleter, ['team_lead', 'admin'], 'Only team leaders and admins can delete records.');
+      return json_(deleteFormRecord_(p.formId, p.id));
     }
     throw new Error('Unsupported operation.');
   } catch (err) {
@@ -351,9 +387,6 @@ function listKpiRecords_(user) {
     var headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
     var idColumn = headers.indexOf(SF.ID_HEADER) + 1;
     if (!idColumn) {
-      if (user.role !== 'admin' && user.role !== 'team_lead') {
-        throw new Error('The KPI sheet needs its permanent ID column initialized by a team lead.');
-      }
       idColumn = lastColumn + 1;
       sheet.getRange(1, idColumn).setValue(SF.ID_HEADER);
       sheet.hideColumns(idColumn);
@@ -371,7 +404,7 @@ function listKpiRecords_(user) {
       var hasProjectName = String(display[i][headers.indexOf('Project Name')] || '').trim();
       if (!hasProjectName) continue;
       var id = String(display[i][idColumn - 1] || '').trim();
-      if (!id && (user.role === 'admin' || user.role === 'team_lead')) {
+      if (!id) {
         id = Utilities.getUuid();
         sheet.getRange(i + 2, idColumn).setValue(id);
       }
@@ -421,6 +454,283 @@ function sheetValueForForm_(value, display) {
   if (value instanceof Date) return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   if (value === null || value === undefined) return '';
   return String(display === null || display === undefined ? value : display);
+}
+
+
+/* ----------------------- Record deletion --------------------------- */
+
+function requireRole_(user, allowed, message) {
+  if (!user || allowed.indexOf(user.role) < 0) throw new Error(message || 'You are not allowed to perform this action.');
+}
+
+function deleteKpiRecord_(recordId) {
+  var id = String(recordId || '').trim();
+  if (!id) throw new Error('A KPI record ID is required.');
+  var spreadsheetId = PropertiesService.getScriptProperties().getProperty('KPI_SPREADSHEET_ID') || SF.KPI_ID;
+  var sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(SF.KPI_TAB);
+  if (!sheet) throw new Error('KPI weekly worksheet was not found.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var lastColumn = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+    var idColumn = headers.indexOf(SF.ID_HEADER) + 1;
+    if (!idColumn) throw new Error('The KPI record ID column has not been initialized.');
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) throw new Error('The KPI record was not found.');
+    var ids = sheet.getRange(2, idColumn, lastRow - 1, 1).getDisplayValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]).trim() === id) {
+        sheet.deleteRow(i + 2);
+        return { ok: true, deleted: true };
+      }
+    }
+    throw new Error('The KPI record was not found. Refresh the list and try again.');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* ---------------------- Form configuration ------------------------- */
+
+var SF_FORMS_PROPERTY = 'SCRIPT_FLOW_FORMS';
+var SF_FORM_ID_HEADER = '__ScriptFlow_ID';
+
+function readFormRegistry_() {
+  var raw = PropertiesService.getScriptProperties().getProperty(SF_FORMS_PROPERTY);
+  if (!raw) return [];
+  var forms;
+  try { forms = JSON.parse(raw); }
+  catch (e) { throw new Error('SCRIPT_FLOW_FORMS contains invalid JSON. Contact the ScriptFlow admin.'); }
+  if (!Array.isArray(forms)) throw new Error('SCRIPT_FLOW_FORMS must contain a JSON array.');
+  return forms;
+}
+
+function writeFormRegistry_(forms) {
+  var raw = JSON.stringify(forms);
+  if (raw.length > 8500) throw new Error('The form registry is too large for Script Properties. Reduce the number of forms or header fields.');
+  PropertiesService.getScriptProperties().setProperty(SF_FORMS_PROPERTY, raw);
+}
+
+function parseSpreadsheetId_(url) {
+  var match = String(url || '').match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
+  if (!match) throw new Error('Enter a valid Google Sheets spreadsheet URL.');
+  return match[1];
+}
+
+function getFormSheet_(form) {
+  var spreadsheet;
+  try { spreadsheet = SpreadsheetApp.openById(form.spreadsheetId); }
+  catch (e) { throw new Error('ScriptFlow cannot access this spreadsheet. Share it with the Google account that owns the Apps Script deployment.'); }
+  var sheet = spreadsheet.getSheetByName(form.sheetName);
+  if (!sheet) throw new Error('The worksheet "' + form.sheetName + '" was not found in the source spreadsheet.');
+  return sheet;
+}
+
+function inferFormFieldType_(header) {
+  var key = String(header || '').toLowerCase();
+  if (/(date|started on|completed on|received on)/.test(key)) return 'date';
+  if (/email/.test(key)) return 'email';
+  if (/(url|link|website)/.test(key)) return 'url';
+  if (/(question|hours|loi|number|count|price|cost|amount|weight)/.test(key)) return 'number';
+  if (/(comment|notes|description)/.test(key)) return 'textarea';
+  return 'text';
+}
+
+function readFormHeaders_(sheet, headerRow) {
+  var lastColumn = sheet.getLastColumn();
+  if (!lastColumn) throw new Error('The selected worksheet does not contain any column headers.');
+  if (lastColumn > 150) throw new Error('A form can contain up to 150 columns.');
+  var headers = sheet.getRange(headerRow, 1, 1, lastColumn).getDisplayValues()[0];
+  var result = [];
+  var seen = {};
+  headers.forEach(function(value, index) {
+    var name = String(value || '').trim();
+    if (!name || name === SF_FORM_ID_HEADER) return;
+    var key = name.toLowerCase();
+    if (seen[key]) throw new Error('Duplicate column header found: "' + name + '". Please make headers unique.');
+    seen[key] = true;
+    result.push({ name: name, type: inferFormFieldType_(name), required: false, column: index + 1 });
+  });
+  if (!result.length) throw new Error('No usable column headers were found in the selected header row.');
+  return result;
+}
+
+function listForms_(user) {
+  var forms = readFormRegistry_().filter(function(form) { return form.active !== false; });
+  return { ok: true, forms: forms.map(function(form) {
+    return { id: form.id, name: form.name, sheetName: form.sheetName, headerRow: form.headerRow, fields: form.fields || [], createdAt: form.createdAt || '' };
+  }) };
+}
+
+function addForm_(input, user) {
+  if (!input || !String(input.name || '').trim()) throw new Error('A form name is required.');
+  var spreadsheetId = parseSpreadsheetId_(input.spreadsheetUrl);
+  var sheetName = String(input.sheetName || '').trim();
+  var headerRow = Number(input.headerRow || 1);
+  if (!sheetName) throw new Error('A worksheet tab name is required.');
+  if (!Number.isInteger(headerRow) || headerRow < 1 || headerRow > 100) throw new Error('Header row must be between 1 and 100.');
+  var form = {
+    id: Utilities.getUuid(), name: String(input.name).trim(), spreadsheetId: spreadsheetId,
+    sheetName: sheetName, headerRow: headerRow, active: true, fields: [],
+    createdAt: new Date().toISOString(), createdBy: user.email, updatedAt: new Date().toISOString()
+  };
+  form.fields = readFormHeaders_(getFormSheet_(form), headerRow);
+  var forms = readFormRegistry_();
+  if (forms.some(function(item) { return item.active !== false && item.spreadsheetId === spreadsheetId && item.sheetName === sheetName; })) {
+    throw new Error('This spreadsheet worksheet is already registered as an active ScriptFlow form.');
+  }
+  forms.push(form);
+  writeFormRegistry_(forms);
+  return { ok: true, form: { id: form.id, name: form.name, sheetName: form.sheetName, headerRow: form.headerRow, fields: form.fields } };
+}
+
+function updateForm_(input, user) {
+  if (!input || !input.id) throw new Error('A form ID is required.');
+  var forms = readFormRegistry_();
+  var form = null;
+  for (var i = 0; i < forms.length; i++) if (forms[i].id === String(input.id)) { form = forms[i]; break; }
+  if (!form || form.active === false) throw new Error('The active form was not found.');
+  if (input.name !== undefined) {
+    if (!String(input.name || '').trim()) throw new Error('A form name is required.');
+    form.name = String(input.name).trim();
+  }
+  if (input.spreadsheetUrl) form.spreadsheetId = parseSpreadsheetId_(input.spreadsheetUrl);
+  if (input.sheetName !== undefined) form.sheetName = String(input.sheetName || '').trim();
+  if (input.headerRow !== undefined) form.headerRow = Number(input.headerRow);
+  if (!form.sheetName) throw new Error('A worksheet tab name is required.');
+  if (!Number.isInteger(form.headerRow) || form.headerRow < 1 || form.headerRow > 100) throw new Error('Header row must be between 1 and 100.');
+  form.fields = readFormHeaders_(getFormSheet_(form), form.headerRow);
+  form.updatedAt = new Date().toISOString();
+  form.updatedBy = user.email;
+  writeFormRegistry_(forms);
+  return { ok: true, form: { id: form.id, name: form.name, sheetName: form.sheetName, headerRow: form.headerRow, fields: form.fields } };
+}
+
+function deactivateForm_(formId, user) {
+  var id = String(formId || '').trim();
+  if (!id) throw new Error('A form ID is required.');
+  var forms = readFormRegistry_();
+  var found = false;
+  forms.forEach(function(form) {
+    if (form.id === id && form.active !== false) {
+      form.active = false;
+      form.removedAt = new Date().toISOString();
+      form.removedBy = user.email;
+      found = true;
+    }
+  });
+  if (!found) throw new Error('The active form was not found.');
+  writeFormRegistry_(forms);
+  return { ok: true, deactivated: true, spreadsheetPreserved: true };
+}
+
+function activeForm_(formId) {
+  var forms = readFormRegistry_();
+  for (var i = 0; i < forms.length; i++) if (forms[i].id === String(formId) && forms[i].active !== false) return forms[i];
+  throw new Error('This form is no longer active in ScriptFlow.');
+}
+
+function ensureFormIdColumn_(sheet, headerRow) {
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(headerRow, 1, 1, lastColumn).getDisplayValues()[0];
+  var idColumn = headers.indexOf(SF_FORM_ID_HEADER) + 1;
+  if (!idColumn) {
+    idColumn = lastColumn + 1;
+    sheet.getRange(headerRow, idColumn).setValue(SF_FORM_ID_HEADER);
+    sheet.hideColumns(idColumn);
+  }
+  return idColumn;
+}
+
+function findFormHeaderColumn_(sheet, headerRow, name) {
+  var headers = sheet.getRange(headerRow, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  var index = headers.indexOf(name);
+  if (index < 0) throw new Error('The column "' + name + '" no longer exists. Update the form configuration.');
+  return index + 1;
+}
+
+function listFormRecords_(formId, user) {
+  var form = activeForm_(formId);
+  var sheet = getFormSheet_(form);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var idColumn = ensureFormIdColumn_(sheet, form.headerRow);
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= form.headerRow) return { ok: true, records: [] };
+    var lastColumn = Math.max(sheet.getLastColumn(), idColumn);
+    var rowCount = lastRow - form.headerRow;
+    var values = sheet.getRange(form.headerRow + 1, 1, rowCount, lastColumn).getValues();
+    var display = sheet.getRange(form.headerRow + 1, 1, rowCount, lastColumn).getDisplayValues();
+    var records = [];
+    var columns = form.fields.map(function(field) { return findFormHeaderColumn_(sheet, form.headerRow, field.name); });
+    for (var r = 0; r < rowCount; r++) {
+      var hasData = columns.some(function(column) { return String(display[r][column - 1] || '').trim() !== ''; });
+      if (!hasData) continue;
+      var id = String(display[r][idColumn - 1] || '').trim();
+      if (!id) {
+        id = Utilities.getUuid();
+        sheet.getRange(form.headerRow + 1 + r, idColumn).setValue(id);
+      }
+      var recordValues = {};
+      form.fields.forEach(function(field, index) {
+        recordValues[field.name] = sheetValueForForm_(values[r][columns[index] - 1], display[r][columns[index] - 1]);
+      });
+      records.push({ id: id, sheetRow: form.headerRow + 1 + r, values: recordValues });
+    }
+    return { ok: true, records: records };
+  } finally { lock.releaseLock(); }
+}
+
+function saveFormRecord_(formId, record) {
+  var form = activeForm_(formId);
+  if (!record || !record.values || typeof record.values !== 'object') throw new Error('Form record values are required.');
+  var sheet = getFormSheet_(form);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var idColumn = ensureFormIdColumn_(sheet, form.headerRow);
+    var lastRow = sheet.getLastRow();
+    var target = 0;
+    if (record.id && lastRow > form.headerRow) {
+      var ids = sheet.getRange(form.headerRow + 1, idColumn, lastRow - form.headerRow, 1).getDisplayValues();
+      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]).trim() === String(record.id)) { target = form.headerRow + 1 + i; break; }
+    }
+    var action = target ? 'updated' : 'inserted';
+    if (!target) target = Math.max(lastRow + 1, form.headerRow + 1);
+    form.fields.forEach(function(field) {
+      var value = Object.prototype.hasOwnProperty.call(record.values, field.name) ? record.values[field.name] : '';
+      if (field.required && String(value || '').trim() === '') throw new Error('"' + field.name + '" is required.');
+      sheet.getRange(target, findFormHeaderColumn_(sheet, form.headerRow, field.name))
+        .setValue(safeCell_(value === null || value === undefined ? '' : value));
+    });
+    var id = record.id || Utilities.getUuid();
+    sheet.getRange(target, idColumn).setValue(id);
+    return { ok: true, action: action, id: id, row: target };
+  } finally { lock.releaseLock(); }
+}
+
+function deleteFormRecord_(formId, recordId) {
+  var form = activeForm_(formId);
+  var id = String(recordId || '').trim();
+  if (!id) throw new Error('A record ID is required.');
+  var sheet = getFormSheet_(form);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= form.headerRow) throw new Error('The record was not found.');
+    var idColumn = ensureFormIdColumn_(sheet, form.headerRow);
+    var ids = sheet.getRange(form.headerRow + 1, idColumn, lastRow - form.headerRow, 1).getDisplayValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]).trim() === id) {
+        sheet.deleteRow(form.headerRow + 1 + i);
+        return { ok: true, deleted: true };
+      }
+    }
+    throw new Error('The record was not found. Refresh the list and try again.');
+  } finally { lock.releaseLock(); }
 }
 
 /* ----------------------------- Helpers ----------------------------- */
