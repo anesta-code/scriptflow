@@ -52,7 +52,7 @@ export default function DynamicFormPage({ form, user }) {
 
   function chooseProject(project) {
     setSelectedProjectId(project.id)
-    setProjectSearch([project.projectNumber, project.spmProjectNumber, project.projectName].filter(Boolean).join(' · '))
+    setProjectSearch(project.projectName || project.projectNumber || project.spmProjectNumber || '')
     setValues(previous => {
       const next = { ...previous }
       mappedFields.forEach(field => { next[field.name] = valueForProjectKey(project, field.projectKey) })
