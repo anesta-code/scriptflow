@@ -6,3 +6,5 @@
 .sf-record-table tbody tr:hover{background:#f8faff}
 .sf-record-table td{vertical-align:middle}
 @media(prefers-reduced-motion:reduce){.sf-form-item{transition:none}}
+
+.sf-project-mapping{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding:16px;border:1px solid #e3e9f3;border-radius:10px;background:#f8faff}.sf-project-mapping>div{grid-column:1/-1}.sf-project-mapping h3{margin:0 0 5px;font-size:14px;color:#26354d}.sf-project-mapping p{margin:0;font-size:11px;line-height:1.5;color:#748198}.sf-project-mapping label{display:grid;gap:6px;font-size:11px;font-weight:650;color:#4c5a70}.sf-project-mapping select{width:100%;box-sizing:border-box;border:1px solid #d9e0ea;border-radius:7px;padding:9px;background:#fff;color:#25334b;font:inherit}@media(max-width:700px){.sf-project-mapping{grid-template-columns:1fr}}
