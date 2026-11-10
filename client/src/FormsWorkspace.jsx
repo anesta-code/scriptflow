@@ -23,7 +23,7 @@ const PROJECT_KEYS = [
   ['tester', 'Tester']
 ]
 
-const blankForm = { id: '', name: '', spreadsheetUrl: '', sheetName: '', headerRow: '1', fieldMappings: {} }
+const blankForm = { id: '', name: '', spreadsheetUrl: '', sheetName: '', headerRow: '1', fieldMappings: {}, fields: [] }
 
 export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
   const isAdmin = user?.role === 'admin'
@@ -70,7 +70,7 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
 
   function addForm() { setDraft(blankForm); setEditor('add') }
   function editForm(form) {
-    setDraft({ id: form.id, name: form.name, spreadsheetUrl: '', sheetName: form.sheetName, headerRow: String(form.headerRow || 1), fieldMappings: Object.fromEntries((form.fields || []).map(field => [field.name, field.projectKey || ''])) })
+    setDraft({ id: form.id, name: form.name, spreadsheetUrl: '', sheetName: form.sheetName, headerRow: String(form.headerRow || 1), fieldMappings: Object.fromEntries((form.fields || []).map(field => [field.name, field.projectKey || ''])), fields: form.fields || [] })
     setEditor('edit')
     setNotice('Leave the spreadsheet URL blank to keep the existing spreadsheet.')
   }
@@ -143,7 +143,7 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
       </div>
       <div className="sf-project-mapping">
         <div><h3>KPI Migration project fields</h3><p>Optional: map destination columns to values from the KPI Migration master record. Employees will select a project when creating a record.</p></div>
-        {(selected?.fields || []).map(field => <label key={field.name}>{field.name}<select value={draft.fieldMappings?.[field.name] || ''} onChange={event => setDraft(previous => ({ ...previous, fieldMappings: { ...(previous.fieldMappings || {}), [field.name]: event.target.value } }))}><option value="">Do not map</option>{PROJECT_KEYS.map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>)}
+        {(draft.fields || []).map(field => <label key={field.name}>{field.name}<select value={draft.fieldMappings?.[field.name] || ''} onChange={event => setDraft(previous => ({ ...previous, fieldMappings: { ...(previous.fieldMappings || {}), [field.name]: event.target.value } }))}><option value="">Do not map</option>{PROJECT_KEYS.map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>)}
       </div>
       <div className="sf-form-actions"><button type="button" className="sf-forms-button light" onClick={() => setEditor('')}>Cancel</button><button className="sf-forms-button primary" disabled={busy}><Save size={14}/> Save form</button></div>
     </form>}
