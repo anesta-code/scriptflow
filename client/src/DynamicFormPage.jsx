@@ -91,7 +91,7 @@ export default function DynamicFormPage({ form, user }) {
     }
   }
 
-  useEffect(() => { loadRecords() }, [form.id])
+  useEffect(() => { loadRecords() }, [form.id, user?.email])
 
   const filteredRecords = useMemo(() => {
     const term = search.trim().toLowerCase()
