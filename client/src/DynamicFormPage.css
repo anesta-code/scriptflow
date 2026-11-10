@@ -1,0 +1,9 @@
+.dfp-editor{display:flex;flex-direction:column;gap:18px}
+.dfp-editor-heading h2{margin:0 0 5px;font-size:18px;color:#1c2c45}
+.dfp-editor-heading p{margin:0;color:#718096;font-size:12px}
+.dfp-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:20px;background:#fff;border:1px solid #e5eaf1;border-radius:12px}
+.dfp-field{display:flex;flex-direction:column;gap:6px;color:#475569;font-size:12px;font-weight:650}
+.dfp-field input,.dfp-field textarea{width:100%;box-sizing:border-box;border:1px solid #d9e0ea;border-radius:7px;padding:10px 11px;font:inherit;color:#1e293b;background:#fff}
+.dfp-field input:focus,.dfp-field textarea:focus{outline:2px solid #c9d8f2;border-color:#829fcf}
+.dfp-actions{display:flex;justify-content:flex-end;gap:9px}
+@media(max-width:700px){.dfp-fields{grid-template-columns:1fr}}
