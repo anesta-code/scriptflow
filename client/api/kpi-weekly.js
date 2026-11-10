@@ -6,40 +6,30 @@ function sameOrigin(req) {
   return Boolean(origin && host && new URL(origin).host === host)
 }
 
+function canWrite(role) {
+  return ['scripter', 'team_lead', 'admin'].includes(role)
+}
+
+function canDelete(role) {
+  return ['team_lead', 'admin'].includes(role)
+}
+
 function toSheetJob(record) {
   return {
-    id: record.id,
-    sw: record.sw,
-    project_number: record.projectNumber,
-    spm_project_number: record.spmProjectNumber,
-    project_name: record.projectName,
-    tester: record.tester,
-    pm: record.pm,
-    status: record.status,
-    status_label: record.status,
-    questions: record.questions,
-    loi: record.loi,
-    level: record.level,
-    qnr_received_on: record.qnrReceivedOn,
-    date_sent_to_qa: record.dateSentToQa,
-    date_sent_to_pm: record.dateSentToPm,
-    launch_date: record.launchDate,
-    test_link: record.testLink,
-    scripting_time_hours: record.scriptingTime,
-    changes_time_hours: record.changesTime,
-    testing_time_hours: record.testingTime,
-    mailing_time_hours: record.mailingTime,
-    total_estimated_hours: record.totalEstimatedHours,
-    hours_worked: record.hoursWorked,
-    commissioning_country: record.commissioningCountry,
-    overlay: record.overlay,
-    price_scripting: record.priceScripting,
-    hours_commissioned: record.hoursCommissioned,
-    client: record.client,
-    bari_oe_checks: record.bariOeChecks,
-    bari_moderations: record.bariModerations,
-    bari_scripting: record.bariScripting,
-    bsurvey: record.bsurvey,
+    id: record.id, sw: record.sw, project_number: record.projectNumber,
+    spm_project_number: record.spmProjectNumber, project_name: record.projectName,
+    tester: record.tester, pm: record.pm, status: record.status, status_label: record.status,
+    questions: record.questions, loi: record.loi, level: record.level,
+    qnr_received_on: record.qnrReceivedOn, date_sent_to_qa: record.dateSentToQa,
+    date_sent_to_pm: record.dateSentToPm, launch_date: record.launchDate,
+    test_link: record.testLink, scripting_time_hours: record.scriptingTime,
+    changes_time_hours: record.changesTime, testing_time_hours: record.testingTime,
+    mailing_time_hours: record.mailingTime, total_estimated_hours: record.totalEstimatedHours,
+    hours_worked: record.hoursWorked, commissioning_country: record.commissioningCountry,
+    overlay: record.overlay, price_scripting: record.priceScripting,
+    hours_commissioned: record.hoursCommissioned, client: record.client,
+    bari_oe_checks: record.bariOeChecks, bari_moderations: record.bariModerations,
+    bari_scripting: record.bariScripting, bsurvey: record.bsurvey,
     complexity_as_spm: record.complexityAsSpm
   }
 }
@@ -48,15 +38,12 @@ export default async function handler(req, res) {
   if (!requireMethod(req, res, 'POST')) return
   res.setHeader('Cache-Control', 'no-store')
   if (!sameOrigin(req)) return res.status(403).json({ ok: false, error: 'Cross-origin request denied.' })
-
   const session = verifySession(readCookie(req, 'sf_session'), process.env.SCRIPT_FLOW_SESSION_SECRET)
   if (!session) return res.status(401).json({ ok: false, error: 'Please sign in with your Bilendi account.' })
-  if (req.body && req.body.action === 'list') {
+
+  if (req.body?.action === 'list') {
     try {
-      const result = await callAppsScript({
-        operation: 'list_kpi_records',
-        user: { email: session.sub, role: session.role }
-      })
+      const result = await callAppsScript({ operation: 'list_kpi_records', user: { email: session.sub, role: session.role } })
       return res.status(200).json({ ok: true, records: result.records || [] })
     } catch (error) {
       console.error('[ScriptFlow KPI list]', error)
@@ -64,25 +51,25 @@ export default async function handler(req, res) {
     }
   }
 
-  if (session.role !== 'admin' && session.role !== 'team_lead') return res.status(403).json({ ok: false, error: 'Only administrators and team leads can submit KPI records.' })
+  if (req.body?.action === 'delete') {
+    if (!canDelete(session.role)) return res.status(403).json({ ok: false, error: 'Only team leaders and admins can delete records.' })
+    if (!req.body.id) return res.status(400).json({ ok: false, error: 'A KPI record ID is required.' })
+    try {
+      const result = await callAppsScript({ operation: 'delete_kpi_record', user: { email: session.sub, role: session.role }, id: req.body.id })
+      return res.status(200).json({ ok: true, deleted: Boolean(result.deleted) })
+    } catch (error) {
+      return res.status(502).json({ ok: false, error: error.message || 'Unable to delete the KPI record.' })
+    }
+  }
 
+  if (!canWrite(session.role)) return res.status(403).json({ ok: false, error: 'You do not have permission to create or edit KPI records.' })
   const record = req.body
   if (!record || typeof record !== 'object' || !record.id || !String(record.projectName || '').trim()) {
     return res.status(400).json({ ok: false, error: 'A valid KPI entry with an ID and Project Name is required.' })
   }
-
   try {
-    const result = await callAppsScript({
-      operation: 'sync_job',
-      user: { email: session.sub, role: session.role },
-      job: toSheetJob(record)
-    })
-    return res.status(200).json({
-      ok: true,
-      action: result.action,
-      row: result.row,
-      message: 'KPI Weekly entry saved to Google Sheets.'
-    })
+    const result = await callAppsScript({ operation: 'sync_job', user: { email: session.sub, role: session.role }, job: toSheetJob(record) })
+    return res.status(200).json({ ok: true, action: result.action, row: result.row, message: 'KPI Weekly entry saved to Google Sheets.' })
   } catch (error) {
     return res.status(502).json({ ok: false, error: error.message || 'Unable to save to Google Sheets.' })
   }
