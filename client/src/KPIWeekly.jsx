@@ -230,6 +230,9 @@ export default function KPIWeekly({ user, signOut }) {
   const canEdit = Boolean(user && ['admin', 'team_lead', 'scripter'].includes(user.role))
   const canDelete = Boolean(user && ['admin', 'team_lead'].includes(user.role))
   const [deletingId, setDeletingId] = useState('')
+  const [availableForms, setAvailableForms] = useState([])
+  const [isLoadingForms, setIsLoadingForms] = useState(true)
+  const [selectedFormId, setSelectedFormId] = useState('')
   const [notice, setNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -280,6 +283,33 @@ export default function KPIWeekly({ user, signOut }) {
   }
 
   useEffect(() => { loadRecords() }, [])
+
+  async function loadAvailableForms() {
+    setIsLoadingForms(true)
+    try {
+      const response = await fetch('/api/forms', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list' })
+      })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to load available forms.')
+      setAvailableForms(result.forms || [])
+    } catch (error) {
+      setNotice('Could not load available forms: ' + error.message)
+    } finally {
+      setIsLoadingForms(false)
+    }
+  }
+
+  function openRegisteredForm(form) {
+    setSelectedFormId(form.id)
+    setActiveTab('forms')
+  }
+
+  useEffect(() => { loadAvailableForms() }, [])
 
   function editRecord(record) {
     if (!canEdit) return
@@ -389,7 +419,7 @@ export default function KPIWeekly({ user, signOut }) {
 
   function clearSession() { loadRecords() }
 
-  if (activeTab === 'forms') return <FormsWorkspace user={user} onBack={() => setActiveTab('records')} />
+  if (activeTab === 'forms') return <FormsWorkspace user={user} initialFormId={selectedFormId} onBack={() => { setSelectedFormId(''); setActiveTab('records'); loadAvailableForms() }} />
 
   return (
     <div className="kpi-app">
@@ -401,7 +431,15 @@ export default function KPIWeekly({ user, signOut }) {
         <div className="kpi-nav-label">REPORTING</div>
         <button type="button" className={activeTab === 'records' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('records')}><FileSpreadsheet size={17} /> KPI Migration</button>
         <button type="button" className={activeTab === 'form' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={startNewRecord}><Plus size={17} /> New KPI record</button>
-        <button type="button" className={activeTab === 'forms' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('forms')}><ClipboardList size={17} /> Forms workspace</button>
+        <div className="kpi-available-forms">
+          <div className="kpi-available-forms-heading">AVAILABLE FORMS</div>
+          {isLoadingForms ? <div className="kpi-forms-loading">Loading forms…</div> : availableForms.length ? availableForms.map(item => (
+            <button type="button" key={item.id} className="kpi-form-nav-item" onClick={() => openRegisteredForm(item)} title={item.name}>
+              <FileSpreadsheet size={15} /><span>{item.name}</span>
+            </button>
+          )) : <div className="kpi-forms-loading">No forms added yet.</div>}
+        </div>
+        <button type="button" className={activeTab === 'forms' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => { setSelectedFormId(''); setActiveTab('forms') }}><ClipboardList size={17} /> Forms workspace</button>
         <div className="kpi-sidebar-note">
           <span className="kpi-live-dot" />
           Google Sheets mode
