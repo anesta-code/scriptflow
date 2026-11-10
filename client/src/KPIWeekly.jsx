@@ -4,6 +4,7 @@ import {
   Plus, RotateCcw, Search, Pencil, RefreshCw
 } from 'lucide-react'
 import './KPIWeekly.css'
+import { cachedRequest, getCachedData, invalidateCachedData, scriptFlowCacheKeys } from './services/dataCache'
 const FormsWorkspace = lazy(() => import('./FormsWorkspace'))
 import DynamicFormPage from './DynamicFormPage'
 
@@ -256,9 +257,11 @@ export default function KPIWeekly({ user, signOut }) {
     )
   }, [records, search])
 
-  async function loadRecords() {
-    setIsLoadingRecords(true)
+  async function loadRecords({ force = false } = {}) {
+    const cacheKey = scriptFlowCacheKeys.kpiRecords(user?.email)
+    setIsLoadingRecords(!getCachedData(cacheKey))
     try {
+      const data = await cachedRequest(cacheKey, async () => {
       const response = await fetch('/api/kpi-weekly', {
         method: 'POST',
         credentials: 'same-origin',
@@ -274,7 +277,9 @@ export default function KPIWeekly({ user, signOut }) {
         throw new Error('Server returned HTTP ' + response.status + ' instead of JSON: ' + responseText.slice(0, 180))
       }
       if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to load KPI records.')
-      setRecords(Array.isArray(result.records) ? result.records : [])
+      return Array.isArray(result.records) ? result.records : []
+      }, { force })
+      setRecords(data)
       setNotice('')
     } catch (error) {
       setNotice('Could not load KPI Migration records: ' + error.message)
@@ -283,11 +288,13 @@ export default function KPIWeekly({ user, signOut }) {
     }
   }
 
-  useEffect(() => { loadRecords() }, [])
+  useEffect(() => { loadRecords() }, [user?.email])
 
-  async function loadAvailableForms() {
-    setIsLoadingForms(true)
+  async function loadAvailableForms({ force = false } = {}) {
+    const cacheKey = scriptFlowCacheKeys.forms(user?.email)
+    setIsLoadingForms(!getCachedData(cacheKey))
     try {
+      const data = await cachedRequest(cacheKey, async () => {
       const response = await fetch('/api/forms', {
         method: 'POST',
         credentials: 'same-origin',
@@ -297,7 +304,9 @@ export default function KPIWeekly({ user, signOut }) {
       })
       const result = await response.json()
       if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to load available forms.')
-      setAvailableForms(result.forms || [])
+      return result.forms || []
+      }, { force })
+      setAvailableForms(data)
     } catch (error) {
       setNotice('Could not load available forms: ' + error.message)
     } finally {
@@ -319,7 +328,7 @@ export default function KPIWeekly({ user, signOut }) {
     setActiveTab('workspace')
   }
 
-  useEffect(() => { loadAvailableForms() }, [])
+  useEffect(() => { loadAvailableForms() }, [user?.email])
 
   function editRecord(record) {
     if (!canEdit) return
@@ -384,7 +393,8 @@ export default function KPIWeekly({ user, signOut }) {
       setEditingId('')
       setForm(INITIAL_FORM)
       setActiveTab('records')
-      await loadRecords()
+      invalidateCachedData(scriptFlowCacheKeys.kpiRecords(user?.email))
+      await loadRecords({ force: true })
       setNotice((result.action === 'updated' ? 'Updated existing KPI record' : 'Added new KPI record') + ' successfully (spreadsheet row ' + result.row + ').')
     } catch (error) {
       setNotice('Google Sheets save failed: ' + error.message + ' Your form data is still here; you can retry.')
@@ -408,7 +418,8 @@ export default function KPIWeekly({ user, signOut }) {
       })
       const result = await response.json()
       if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to delete the KPI record.')
-      await loadRecords()
+      invalidateCachedData(scriptFlowCacheKeys.kpiRecords(user?.email))
+      await loadRecords({ force: true })
       setNotice('KPI record deleted from the KPI weekly spreadsheet.')
     } catch (error) {
       setNotice('Could not delete KPI record: ' + error.message)
@@ -432,9 +443,9 @@ export default function KPIWeekly({ user, signOut }) {
     }
   }
 
-  function clearSession() { loadRecords() }
+  function clearSession() { loadRecords({ force: true }) }
 
-  if (activeTab === 'workspace' && user?.role === 'admin') return <Suspense fallback={<div className="kpi-loading-view">Loading Forms Workspace…</div>}><FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms() }} /></Suspense>
+  if (activeTab === 'workspace' && user?.role === 'admin') return <Suspense fallback={<div className="kpi-loading-view">Loading Forms Workspace…</div>}><FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms({ force: true }) }} /></Suspense>
 
   return (
     <div className="kpi-app">
