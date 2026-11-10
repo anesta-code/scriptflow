@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Plus, RefreshCw, Pencil, Trash2, FileSpreadsheet, Save, X } from 'lucide-react'
 import './FormsWorkspace.css'
+import { cachedRequest, getCachedData, invalidateCachedData, scriptFlowCacheKeys } from './services/dataCache'
 
 async function request(action, data = {}) {
   const response = await fetch('/api/forms', {
@@ -39,10 +40,11 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
   const [recordEditor, setRecordEditor] = useState(false)
   const [editingId, setEditingId] = useState('')
 
-  async function loadForms() {
-    setBusy(true)
+  async function loadForms({ force = false } = {}) {
+    const cacheKey = scriptFlowCacheKeys.forms(user?.email)
+    setBusy(!getCachedData(cacheKey))
     try {
-      const result = await request('list')
+      const result = await cachedRequest(cacheKey, () => request('list'), { force })
       setForms(result.forms || [])
       if (initialFormId) {
         const initialForm = (result.forms || []).find(form => form.id === initialFormId)
@@ -57,16 +59,18 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
     finally { setBusy(false) }
   }
 
-  async function loadRecords(form) {
-    setSelected(form); setRecordEditor(false); setBusy(true)
+  async function loadRecords(form, { force = false } = {}) {
+    setSelected(form); setRecordEditor(false)
+    const cacheKey = scriptFlowCacheKeys.formRecords(user?.email, form.id)
+    setBusy(!getCachedData(cacheKey))
     try {
-      const result = await request('list-records', { formId: form.id })
+      const result = await cachedRequest(cacheKey, () => request('list-records', { formId: form.id }), { force })
       setRecords(result.records || []); setNotice('')
     } catch (error) { setRecords([]); setNotice(error.message) }
     finally { setBusy(false) }
   }
 
-  useEffect(() => { loadForms() }, [initialFormId])
+  useEffect(() => { loadForms() }, [initialFormId, user?.email])
 
   function addForm() { setDraft(blankForm); setEditor('add') }
   function editForm(form) {
@@ -82,8 +86,10 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
       if (draft.spreadsheetUrl.trim()) form.spreadsheetUrl = draft.spreadsheetUrl.trim()
       const action = editor
       const result = await request(action, { form })
-      await loadForms()
-      if (result.form) await loadRecords(result.form)
+      invalidateCachedData(scriptFlowCacheKeys.forms(user?.email))
+      if (draft.id) invalidateCachedData(scriptFlowCacheKeys.formRecords(user?.email, draft.id))
+      await loadForms({ force: true })
+      if (result.form) await loadRecords(result.form, { force: true })
       if (action === 'add' && result.form) {
         setDraft({ id: result.form.id, name: result.form.name, spreadsheetUrl: '', sheetName: result.form.sheetName, headerRow: String(result.form.headerRow || 1), fieldMappings: {}, fields: result.form.fields || [] })
         setEditor('update')
@@ -100,6 +106,7 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
     if (!window.confirm('Remove "' + form.name + '" from ScriptFlow?\n\nThe Google spreadsheet and all its data will remain untouched.')) return
     try {
       await request('remove', { formId: form.id })
+      invalidateCachedData(scriptFlowCacheKeys.forms(user?.email), scriptFlowCacheKeys.formRecords(user?.email, form.id))
       if (selected?.id === form.id) { setSelected(null); setRecords([]) }
       await loadForms()
       setNotice('Form removed from ScriptFlow. The spreadsheet was not changed.')
@@ -117,7 +124,8 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
     try {
       const result = await request('save-record', { formId: selected.id, record: { id: editingId, values: recordDraft } })
       setRecordEditor(false); setEditingId('')
-      await loadRecords(selected)
+      invalidateCachedData(scriptFlowCacheKeys.formRecords(user?.email, selected.id))
+      await loadRecords(selected, { force: true })
       setNotice((result.action === 'updated' ? 'Record updated.' : 'Record created.') + ' Spreadsheet row ' + result.row + '.')
     } catch (error) { setNotice(error.message) }
     finally { setBusy(false) }
@@ -127,7 +135,8 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
     if (!window.confirm('Delete this record from its source spreadsheet?')) return
     try {
       await request('delete-record', { formId: selected.id, id: record.id })
-      await loadRecords(selected); setNotice('Record deleted from the source spreadsheet.')
+      invalidateCachedData(scriptFlowCacheKeys.formRecords(user?.email, selected.id))
+      await loadRecords(selected, { force: true }); setNotice('Record deleted from the source spreadsheet.')
     } catch (error) { setNotice(error.message) }
   }
 
@@ -136,7 +145,7 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
       <div><span className="sf-forms-eyebrow">SCRIPTFLOW · CENTRAL WORKSPACE</span><h1>Forms workspace</h1><p>Each form reads and writes to its own original Google spreadsheet.</p></div>
       <div className="sf-forms-actions">
         <button className="sf-forms-button light" onClick={onBack}><ArrowLeft size={15}/> KPI Weekly</button>
-        <button className="sf-forms-button light" onClick={loadForms} disabled={busy}><RefreshCw size={14}/> Refresh</button>
+        <button className="sf-forms-button light" onClick={() => loadForms({ force: true })} disabled={busy}><RefreshCw size={14}/> Refresh</button>
         {isAdmin && <button className="sf-forms-button primary" onClick={addForm}><Plus size={15}/> Add form</button>}
       </div>
     </header>

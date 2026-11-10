@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileSpreadsheet, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react'
 import './DynamicFormPage.css'
+import { cachedRequest, getCachedData, invalidateCachedData, scriptFlowCacheKeys } from './services/dataCache'
 
 async function request(action, data = {}) {
   const response = await fetch('/api/forms', {
@@ -51,7 +52,8 @@ export default function DynamicFormPage({ form, user }) {
     const timer = window.setTimeout(async () => {
       setProjectsLoading(true)
       try {
-        const result = await request('list-projects', { query: projectQuery })
+        const cacheKey = scriptFlowCacheKeys.projects(user?.email, projectQuery)
+        const result = await cachedRequest(cacheKey, () => request('list-projects', { query: projectQuery }), { ttlMs: 30_000 })
         if (!cancelled) setProjects(result.projects || [])
       } catch (error) {
         if (!cancelled) setNotice('Could not search KPI Migration projects: ' + error.message)
@@ -75,10 +77,11 @@ export default function DynamicFormPage({ form, user }) {
     })
   }
 
-  async function loadRecords() {
-    setBusy(true)
+  async function loadRecords({ force = false } = {}) {
+    const cacheKey = scriptFlowCacheKeys.formRecords(user?.email, form.id)
+    setBusy(!getCachedData(cacheKey))
     try {
-      const result = await request('list-records', { formId: form.id })
+      const result = await cachedRequest(cacheKey, () => request('list-records', { formId: form.id }), { force })
       setRecords(result.records || [])
       setNotice('')
     } catch (error) {
@@ -88,7 +91,7 @@ export default function DynamicFormPage({ form, user }) {
     }
   }
 
-  useEffect(() => { loadRecords() }, [form.id])
+  useEffect(() => { loadRecords() }, [form.id, user?.email])
 
   const filteredRecords = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -133,7 +136,8 @@ export default function DynamicFormPage({ form, user }) {
       setIsEditing(false)
       setEditingId('')
       setEditingRevision('')
-      await loadRecords()
+      invalidateCachedData(scriptFlowCacheKeys.formRecords(user?.email, form.id))
+      await loadRecords({ force: true })
       setNotice((result.action === 'updated' ? 'Record updated.' : 'New record added.') +
         (result.row ? ' Spreadsheet row ' + result.row + '.' : ''))
     } catch (error) {
@@ -149,7 +153,8 @@ export default function DynamicFormPage({ form, user }) {
     setBusy(true)
     try {
       await request('delete-record', { formId: form.id, id: record.id })
-      await loadRecords()
+      invalidateCachedData(scriptFlowCacheKeys.formRecords(user?.email, form.id))
+      await loadRecords({ force: true })
       setNotice('Record deleted from the source spreadsheet.')
     } catch (error) {
       setNotice('Could not delete record: ' + error.message)
@@ -193,7 +198,7 @@ export default function DynamicFormPage({ form, user }) {
             <div><h2>All records <span>{records.length}</span></h2><p>Live records loaded from the original spreadsheet.</p></div>
             <div className="kpi-submission-actions">
               <div className="kpi-search"><Search size={16}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search records…"/></div>
-              <button className="kpi-button secondary" onClick={loadRecords} disabled={busy}><RefreshCw size={14}/> Refresh</button>
+              <button className="kpi-button secondary" onClick={() => loadRecords({ force: true })} disabled={busy}><RefreshCw size={14}/> Refresh</button>
             </div>
           </div>
           {busy && !records.length ? <div className="kpi-empty"><RefreshCw size={22}/><strong>Loading records…</strong></div> : filteredRecords.length ? (
