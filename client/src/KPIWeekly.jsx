@@ -6,6 +6,7 @@ import {
 import * as XLSX from 'xlsx'
 import './KPIWeekly.css'
 import FormsWorkspace from './FormsWorkspace'
+import DynamicFormPage from './DynamicFormPage'
 
 const STATUS_OPTIONS = [
   'New', 'QNR check', 'Ready', 'In progress', 'QA review',
@@ -233,6 +234,7 @@ export default function KPIWeekly({ user, signOut }) {
   const [availableForms, setAvailableForms] = useState([])
   const [isLoadingForms, setIsLoadingForms] = useState(true)
   const [selectedFormId, setSelectedFormId] = useState('')
+  const [selectedForm, setSelectedForm] = useState(null)
   const [notice, setNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -306,7 +308,16 @@ export default function KPIWeekly({ user, signOut }) {
 
   function openRegisteredForm(form) {
     setSelectedFormId(form.id)
-    setActiveTab('forms')
+    setSelectedForm(form)
+    setActiveTab('registered-form')
+    setNotice('')
+  }
+
+  function openFormsWorkspace() {
+    if (user?.role !== 'admin') return
+    setSelectedFormId('')
+    setSelectedForm(null)
+    setActiveTab('workspace')
   }
 
   useEffect(() => { loadAvailableForms() }, [])
@@ -419,7 +430,8 @@ export default function KPIWeekly({ user, signOut }) {
 
   function clearSession() { loadRecords() }
 
-  if (activeTab === 'forms') return <FormsWorkspace user={user} initialFormId={selectedFormId} onBack={() => { setSelectedFormId(''); setActiveTab('records'); loadAvailableForms() }} />
+  if (activeTab === 'registered-form' && selectedForm) return <DynamicFormPage key={selectedForm.id} form={selectedForm} user={user} onBack={() => { setSelectedFormId(''); setSelectedForm(null); setActiveTab('records'); loadAvailableForms() }} />
+  if (activeTab === 'workspace' && user?.role === 'admin') return <FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms() }} />
 
   return (
     <div className="kpi-app">
@@ -439,7 +451,7 @@ export default function KPIWeekly({ user, signOut }) {
             </button>
           )) : <div className="kpi-forms-loading">No forms added yet.</div>}
         </div>
-        <button type="button" className={activeTab === 'forms' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => { setSelectedFormId(''); setActiveTab('forms') }}><ClipboardList size={17} /> Forms workspace</button>
+        {user?.role === 'admin' && <button type="button" className={activeTab === 'workspace' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={openFormsWorkspace}><ClipboardList size={17} /> Forms workspace</button>}
         <div className="kpi-sidebar-note">
           <span className="kpi-live-dot" />
           Google Sheets mode
