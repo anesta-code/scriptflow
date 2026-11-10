@@ -602,7 +602,7 @@ function readFormHeaders_(sheet, headerRow) {
   var seen = {};
   headers.forEach(function(value, index) {
     var name = String(value || '').trim();
-    if (!name || name === SF_FORM_ID_HEADER) return;
+    if (!name || name === SF_FORM_ID_HEADER || name === SF_FORM_PROJECT_HEADER || name === SF_FORM_REVISION_HEADER) return;
     var key = name.toLowerCase();
     if (seen[key]) throw new Error('Duplicate column header found: "' + name + '". Please make headers unique.');
     seen[key] = true;
