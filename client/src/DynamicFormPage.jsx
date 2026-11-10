@@ -31,25 +31,39 @@ export default function DynamicFormPage({ form, user }) {
   const fields = Array.isArray(form.fields) ? form.fields : []
   const mappedFields = fields.filter(field => field.projectKey)
   const usesProjectReference = mappedFields.length > 0
-  const filteredProjects = projects.filter(project => [project.projectNumber, project.spmProjectNumber, project.projectName, project.client].some(value => String(value || '').toLowerCase().includes(projectSearch.trim().toLowerCase())))
+  const projectQuery = projectSearch.trim()
 
   function valueForProjectKey(project, key) {
     const values = { project_number: project.projectNumber, spm_project_number: project.spmProjectNumber, project_name: project.projectName, complexity: project.complexity, client: project.client, pm: project.pm, tester: project.tester }
     return values[key] ?? ''
   }
 
-  async function loadProjects() {
-    setProjectsLoading(true)
-    try {
-      const result = await request('list-projects')
-      setProjects(result.projects || [])
-    } catch (error) {
-      setNotice('Could not load KPI Migration projects: ' + error.message)
-    } finally {
-      setProjectsLoading(false)
-    }
-  }
+  useEffect(() => {
+    let cancelled = false
+    setProjects([])
 
+    if (!usesProjectReference || !isEditing || projectQuery.length < 2) {
+      setProjectsLoading(false)
+      return undefined
+    }
+
+    const timer = window.setTimeout(async () => {
+      setProjectsLoading(true)
+      try {
+        const result = await request('list-projects', { query: projectQuery })
+        if (!cancelled) setProjects(result.projects || [])
+      } catch (error) {
+        if (!cancelled) setNotice('Could not search KPI Migration projects: ' + error.message)
+      } finally {
+        if (!cancelled) setProjectsLoading(false)
+      }
+    }, 300)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [projectQuery, usesProjectReference, isEditing])
   function chooseProject(project) {
     setSelectedProjectId(project.id)
     setProjectSearch(project.projectName || project.projectNumber || project.spmProjectNumber || '')
@@ -92,7 +106,6 @@ export default function DynamicFormPage({ form, user }) {
     setProjectSearch('')
     setIsEditing(true)
     setNotice('')
-    if (usesProjectReference) loadProjects()
   }
 
   function startEdit(record) {
@@ -103,7 +116,6 @@ export default function DynamicFormPage({ form, user }) {
     setProjectSearch(identifierField ? String(record.values?.[identifierField.name] || '') : '')
     setIsEditing(true)
     setNotice('')
-    if (usesProjectReference) loadProjects()
   }
 
   async function saveRecord(event) {
@@ -154,8 +166,12 @@ export default function DynamicFormPage({ form, user }) {
           <div className="dfp-editor-heading"><div><h2>{editingId ? 'Edit record' : 'New record'}</h2><p>Complete the fields below. Required fields are marked with *.</p></div></div>
           {usesProjectReference && <section className="dfp-project-picker">
             <div><h3>Select a KPI Migration project</h3><p>Search by Project Number, SPM Project Number or Project Name. Mapped fields will be filled automatically.</p></div>
-            <input type="search" value={projectSearch} onChange={event => setProjectSearch(event.target.value)} placeholder="Search project number, SPM number or name…" />
-            {projectsLoading ? <p>Loading KPI projects…</p> : <div className="dfp-project-results">{filteredProjects.slice(0, 30).map(project => <button type="button" key={project.id} className={selectedProjectId === project.id ? 'selected' : ''} onClick={() => chooseProject(project)}><strong>{project.projectName || 'Unnamed project'}</strong><span>Project: {project.projectNumber || '—'} · SPM: {project.spmProjectNumber || '—'}</span></button>)}{!filteredProjects.length && <p>No matching projects found.</p>}</div>}
+            <input type="search" value={projectSearch} onChange={event => setProjectSearch(event.target.value)} placeholder="Search project number, SPM number or name…" autoComplete="off" />
+            {projectQuery.length < 2
+              ? <p>Type at least 2 characters to search KPI Migration projects.</p>
+              : projectsLoading
+                ? <p>Searching KPI Migration projects…</p>
+                : <div className="dfp-project-results">{projects.map(project => <button type="button" key={project.id} className={selectedProjectId === project.id ? 'selected' : ''} onClick={() => chooseProject(project)}><strong>{project.projectName || 'Unnamed project'}</strong><span>Project: {project.projectNumber || '—'} · SPM: {project.spmProjectNumber || '—'}</span></button>)}{!projects.length && <p>No matching projects found.</p>}</div>}
           </section>}
           <div className="dfp-fields">
             {fields.map(field => <label className={'dfp-field ' + (field.projectKey ? 'dfp-mapped-field' : '')} key={field.name}>

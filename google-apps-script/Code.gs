@@ -64,7 +64,7 @@ function doPost(e) {
     }
     if (p.operation === 'list_kpi_projects') {
       var projectReader = verifyUser_(p.user);
-      return json_(listKpiProjects_(projectReader));
+      return json_(listKpiProjects_(projectReader, p.query));
     }
     if (p.operation === 'sync_job') {
       var writer = verifyUser_(p.user);
@@ -460,11 +460,19 @@ function sheetValueForForm_(value, display) {
   return String(display === null || display === undefined ? value : display);
 }
 
-function listKpiProjects_(user) {
+function listKpiProjects_(user, query) {
+  var term = String(query || '').trim().toLowerCase();
+  if (term.length < 2) return { ok: true, projects: [] };
+
   var result = listKpiRecords_(user);
   var projects = (result.records || []).map(function(record) {
     return { id: record.id, projectNumber: record.projectNumber || '', spmProjectNumber: record.spmProjectNumber || '', projectName: record.projectName || '', complexity: record.complexityAsSpm || '', client: record.client || '', pm: record.pm || '', tester: record.tester || '' };
-  }).filter(function(project) { return String(project.projectNumber).trim() || String(project.spmProjectNumber).trim(); });
+  }).filter(function(project) {
+    if (!String(project.projectNumber).trim() && !String(project.spmProjectNumber).trim()) return false;
+    return [project.projectNumber, project.spmProjectNumber, project.projectName, project.client]
+      .some(function(value) { return String(value || '').toLowerCase().indexOf(term) !== -1; });
+  }).slice(0, 20);
+
   return { ok: true, projects: projects };
 }
 
