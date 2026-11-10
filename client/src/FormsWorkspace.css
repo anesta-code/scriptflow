@@ -8,3 +8,58 @@
 @media(prefers-reduced-motion:reduce){.sf-form-item{transition:none}}
 
 .sf-project-mapping{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding:16px;border:1px solid #e3e9f3;border-radius:10px;background:#f8faff}.sf-project-mapping>div{grid-column:1/-1}.sf-project-mapping h3{margin:0 0 5px;font-size:14px;color:#26354d}.sf-project-mapping p{margin:0;font-size:11px;line-height:1.5;color:#748198}.sf-project-mapping label{display:grid;gap:6px;font-size:11px;font-weight:650;color:#4c5a70}.sf-project-mapping select{width:100%;box-sizing:border-box;border:1px solid #d9e0ea;border-radius:7px;padding:9px;background:#fff;color:#25334b;font:inherit}@media(max-width:700px){.sf-project-mapping{grid-template-columns:1fr}}
+
+
+/* Responsive workspace polish */
+.sf-forms-page{width:100%;min-width:0;padding:clamp(16px,2.4vw,34px)}
+.sf-forms-header,.sf-forms-columns,.sf-form-editor,.sf-forms-notice{min-width:0}
+.sf-forms-list,.sf-forms-records,.sf-form-editor{border-radius:13px;box-shadow:0 2px 8px rgba(22,34,58,.035)}
+.sf-forms-records,.sf-forms-list{min-width:0}
+.sf-form-item{min-width:0}
+.sf-form-select{flex:1;min-width:0;padding:5px}
+.sf-form-select span{min-width:0}
+.sf-form-select b,.sf-form-select small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sf-record-table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.sf-record-table th{white-space:nowrap}
+.sf-record-table td{overflow-wrap:anywhere}
+.sf-form-fields input,.sf-form-fields select,.sf-dynamic-grid input,.sf-dynamic-grid textarea,.sf-project-mapping select{min-height:42px;min-width:0;box-sizing:border-box}
+.sf-dynamic-grid textarea{resize:vertical}
+.sf-forms-button{min-height:39px;transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease}
+.sf-forms-button:focus-visible,.sf-form-item button:focus-visible,.sf-form-editor-title button:focus-visible{outline:3px solid #3159d955;outline-offset:2px}
+.sf-form-actions button{min-width:32px;min-height:32px}
+@media(max-width:1000px){
+  .sf-forms-columns{grid-template-columns:minmax(220px,280px) minmax(0,1fr);gap:12px}
+  .sf-forms-page{padding:22px}
+}
+@media(max-width:800px){
+  .sf-forms-page{padding:18px 14px}
+  .sf-forms-header{align-items:flex-start;flex-direction:column}
+  .sf-forms-actions{width:100%;justify-content:flex-start}
+  .sf-forms-columns{grid-template-columns:1fr}
+  .sf-forms-list{order:0}
+  .sf-forms-records{order:1}
+  .sf-form-fields,.sf-dynamic-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  .sf-forms-page{padding:15px 11px}
+  .sf-forms-header h1{font-size:23px}
+  .sf-forms-header p{line-height:1.5}
+  .sf-forms-actions{display:grid;grid-template-columns:1fr 1fr}
+  .sf-forms-actions .primary{grid-column:1/-1}
+  .sf-form-editor,.sf-forms-list,.sf-forms-records{padding:13px}
+  .sf-form-fields,.sf-dynamic-grid,.sf-project-mapping{grid-template-columns:1fr}
+  .sf-project-mapping{padding:12px}
+  .sf-form-item{align-items:flex-start}
+  .sf-form-select{align-items:flex-start}
+  .sf-forms-records>header{align-items:flex-start;flex-wrap:wrap}
+  .sf-forms-records>header .sf-forms-button{width:100%}
+  .sf-form-actions{width:100%;justify-content:flex-end}
+  .sf-form-actions .sf-forms-button{width:auto}
+  .sf-record-table{min-width:520px}
+  .sf-form-actions button{min-width:36px;min-height:36px}
+}
+@media(max-width:360px){
+  .sf-forms-actions{grid-template-columns:1fr}
+  .sf-forms-actions .primary{grid-column:auto}
+  .sf-forms-page{padding-inline:9px}
+}
