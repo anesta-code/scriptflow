@@ -530,6 +530,7 @@ function deleteKpiRecord_(recordId) {
 var SF_FORMS_PROPERTY = 'SCRIPT_FLOW_FORMS';
 var SF_FORM_ID_HEADER = '__ScriptFlow_ID';
 var SF_FORM_PROJECT_HEADER = '__ScriptFlow_Project_ID';
+var SF_FORM_REVISION_HEADER = '__ScriptFlow_Revision';
 var SF_PROJECT_FIELD_KEYS = ['project_number', 'spm_project_number', 'project_name', 'complexity', 'client', 'pm', 'tester'];
 
 function readFormRegistry_() {
@@ -724,6 +725,18 @@ function ensureFormIdColumn_(sheet, headerRow) {
   return idColumn;
 }
 
+function ensureFormRevisionColumn_(sheet, headerRow) {
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(headerRow, 1, 1, lastColumn).getDisplayValues()[0];
+  var column = headers.indexOf(SF_FORM_REVISION_HEADER) + 1;
+  if (!column) {
+    column = lastColumn + 1;
+    sheet.getRange(headerRow, column).setValue(SF_FORM_REVISION_HEADER);
+    sheet.hideColumns(column);
+  }
+  return column;
+}
+
 function findFormHeaderColumn_(sheet, headerRow, name) {
   var headers = sheet.getRange(headerRow, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
   var index = headers.indexOf(name);
@@ -738,6 +751,7 @@ function listFormRecords_(formId, user) {
   lock.waitLock(20000);
   try {
     var idColumn = ensureFormIdColumn_(sheet, form.headerRow);
+    var revisionColumn = ensureFormRevisionColumn_(sheet, form.headerRow);
     var projectColumn = formHasProjectMappings_(form) ? ensureFormProjectColumn_(sheet, form.headerRow) : 0;
     var lastRow = sheet.getLastRow();
     if (lastRow <= form.headerRow) return { ok: true, records: [] };
@@ -755,11 +769,16 @@ function listFormRecords_(formId, user) {
         id = Utilities.getUuid();
         sheet.getRange(form.headerRow + 1 + r, idColumn).setValue(id);
       }
+      var revision = String(display[r][revisionColumn - 1] || '').trim();
+      if (!revision) {
+        revision = Utilities.getUuid();
+        sheet.getRange(form.headerRow + 1 + r, revisionColumn).setValue(revision);
+      }
       var recordValues = {};
       form.fields.forEach(function(field, index) {
         recordValues[field.name] = sheetValueForForm_(values[r][columns[index] - 1], display[r][columns[index] - 1]);
       });
-      records.push({ id: id, projectId: projectColumn ? String(display[r][projectColumn - 1] || '').trim() : '', sheetRow: form.headerRow + 1 + r, values: recordValues });
+      records.push({ id: id, revision: revision, projectId: projectColumn ? String(display[r][projectColumn - 1] || '').trim() : '', sheetRow: form.headerRow + 1 + r, values: recordValues });
     }
     return { ok: true, records: records };
   } finally { lock.releaseLock(); }
@@ -779,15 +798,38 @@ function saveFormRecord_(formId, record) {
   lock.waitLock(20000);
   try {
     var idColumn = ensureFormIdColumn_(sheet, form.headerRow);
+    var revisionColumn = ensureFormRevisionColumn_(sheet, form.headerRow);
     if (formHasProjectMappings_(form)) projectColumn = ensureFormProjectColumn_(sheet, form.headerRow);
     var lastRow = sheet.getLastRow();
     var target = 0;
     if (record.id && lastRow > form.headerRow) {
       var ids = sheet.getRange(form.headerRow + 1, idColumn, lastRow - form.headerRow, 1).getDisplayValues();
-      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]).trim() === String(record.id)) { target = form.headerRow + 1 + i; break; }
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]).trim() === String(record.id)) {
+          target = form.headerRow + 1 + i;
+          break;
+        }
+      }
     }
+
+    if (record.id && !target) {
+      throw new Error('This record no longer exists. Refresh the record list before continuing.');
+    }
+
     var action = target ? 'updated' : 'inserted';
-    if (!target) target = Math.max(lastRow + 1, form.headerRow + 1);
+    if (target) {
+      var currentRevision = String(sheet.getRange(target, revisionColumn).getDisplayValue() || '').trim();
+      if (!currentRevision) {
+        currentRevision = Utilities.getUuid();
+        sheet.getRange(target, revisionColumn).setValue(currentRevision);
+      }
+      if (!record.revision || String(record.revision) !== currentRevision) {
+        throw new Error('This record was updated by another user while you were editing it. Your changes have not been saved. Cancel editing, refresh the record list, and reopen the record.');
+      }
+    } else {
+      target = Math.max(lastRow + 1, form.headerRow + 1);
+    }
+
     form.fields.forEach(function(field) {
       var value = Object.prototype.hasOwnProperty.call(record.values, field.name) ? record.values[field.name] : '';
       if (field.required && String(value || '').trim() === '') throw new Error('"' + field.name + '" is required.');
@@ -795,9 +837,11 @@ function saveFormRecord_(formId, record) {
         .setValue(safeCell_(value === null || value === undefined ? '' : value));
     });
     var id = record.id || Utilities.getUuid();
+    var nextRevision = Utilities.getUuid();
     sheet.getRange(target, idColumn).setValue(id);
+    sheet.getRange(target, revisionColumn).setValue(nextRevision);
     if (projectColumn) sheet.getRange(target, projectColumn).setValue(record.projectId);
-    return { ok: true, action: action, id: id, row: target };
+    return { ok: true, action: action, id: id, revision: nextRevision, row: target };
   } finally { lock.releaseLock(); }
 }
 
