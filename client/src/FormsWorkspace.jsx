@@ -15,7 +15,7 @@ async function request(action, data = {}) {
 
 const blankForm = { id: '', name: '', spreadsheetUrl: '', sheetName: '', headerRow: '1' }
 
-export default function FormsWorkspace({ user, onBack }) {
+export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
   const isAdmin = user?.role === 'admin'
   const canDelete = ['team_lead', 'admin'].includes(user?.role)
   const [forms, setForms] = useState([])
@@ -34,7 +34,10 @@ export default function FormsWorkspace({ user, onBack }) {
     try {
       const result = await request('list')
       setForms(result.forms || [])
-      if (selected) {
+      if (initialFormId) {
+        const initialForm = (result.forms || []).find(form => form.id === initialFormId)
+        if (initialForm) await loadRecords(initialForm)
+      } else if (selected) {
         const match = (result.forms || []).find(form => form.id === selected.id)
         if (!match) { setSelected(null); setRecords([]) }
         else setSelected(match)
@@ -53,7 +56,7 @@ export default function FormsWorkspace({ user, onBack }) {
     finally { setBusy(false) }
   }
 
-  useEffect(() => { loadForms() }, [])
+  useEffect(() => { loadForms() }, [initialFormId])
 
   function addForm() { setDraft(blankForm); setEditor('add') }
   function editForm(form) {
