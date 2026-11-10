@@ -71,7 +71,7 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
   function addForm() { setDraft(blankForm); setEditor('add') }
   function editForm(form) {
     setDraft({ id: form.id, name: form.name, spreadsheetUrl: '', sheetName: form.sheetName, headerRow: String(form.headerRow || 1), fieldMappings: Object.fromEntries((form.fields || []).map(field => [field.name, field.projectKey || ''])), fields: form.fields || [] })
-    setEditor('edit')
+    setEditor('update')
     setNotice('Leave the spreadsheet URL blank to keep the existing spreadsheet.')
   }
 
@@ -80,10 +80,18 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
     try {
       const form = { id: draft.id, name: draft.name.trim(), sheetName: draft.sheetName.trim(), headerRow: Number(draft.headerRow), fieldMappings: draft.fieldMappings || {} }
       if (draft.spreadsheetUrl.trim()) form.spreadsheetUrl = draft.spreadsheetUrl.trim()
-      const result = await request(editor, { form })
-      setEditor(''); await loadForms()
+      const action = editor
+      const result = await request(action, { form })
+      await loadForms()
       if (result.form) await loadRecords(result.form)
-      setNotice(editor === 'add' ? 'Form added to ScriptFlow.' : 'Form configuration updated.')
+      if (action === 'add' && result.form) {
+        setDraft({ id: result.form.id, name: result.form.name, spreadsheetUrl: '', sheetName: result.form.sheetName, headerRow: String(result.form.headerRow || 1), fieldMappings: {}, fields: result.form.fields || [] })
+        setEditor('update')
+        setNotice('Form added. You can now map its columns to KPI Migration project fields before employees use it.')
+      } else {
+        setEditor('')
+        setNotice('Form configuration updated.')
+      }
     } catch (error) { setNotice(error.message) }
     finally { setBusy(false) }
   }
