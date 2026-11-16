@@ -226,3 +226,19 @@
   .kpi-button{font-size:11px;padding:9px 10px}
   .kpi-sidebar .kpi-nav-item{font-size:11px}
 }
+
+
+.kpi-notification-wrap{position:relative;display:flex;align-items:center}
+.kpi-notification-trigger{position:relative;width:38px;height:38px;display:grid;place-items:center;border:1px solid #e0e5ed;border-radius:9px;background:#fff;color:#344158;cursor:pointer}
+.kpi-notification-trigger>span{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 4px;display:grid;place-items:center;border-radius:20px;background:#d92d20;color:#fff;font-size:9px;font-weight:800}
+.kpi-notification-panel{position:absolute;z-index:20;right:0;top:47px;width:min(360px,calc(100vw - 28px));max-height:470px;display:flex;flex-direction:column;background:#fff;border:1px solid var(--kpi-border);border-radius:12px;box-shadow:0 14px 40px #17203324;overflow:hidden}
+.kpi-notification-heading{display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid var(--kpi-border)}
+.kpi-notification-heading strong,.kpi-notification-heading small{display:block}.kpi-notification-heading strong{font-size:13px}.kpi-notification-heading small{margin-top:3px;color:var(--kpi-muted);font-size:10px}
+.kpi-notification-heading button{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:#f5f7fb;color:#667085;cursor:pointer}
+.kpi-notification-read-all{display:flex;align-items:center;gap:6px;padding:9px 14px;border:0;border-bottom:1px solid #f0f2f6;background:#fff;color:var(--kpi-blue);font-size:10px;font-weight:700;cursor:pointer}
+.kpi-notification-list{overflow:auto}
+.kpi-notification-item{width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:12px 15px;border:0;border-bottom:1px solid #f0f2f6;background:#fff;text-align:left;cursor:pointer}
+.kpi-notification-item:hover{background:#f8faff}.kpi-notification-item.unread{background:#f4f7ff}
+.kpi-notification-item strong{font-size:11px;color:#243149}.kpi-notification-item span{font-size:10px;line-height:1.5;color:#667085}.kpi-notification-item small{font-size:9px;color:#98a2b3}
+.kpi-notification-empty,.kpi-notification-error{padding:20px 14px;margin:0;color:#7d8799;font-size:11px;text-align:center}.kpi-notification-error{color:#b42318}
+@media(max-width:700px){.kpi-notification-panel{position:fixed;top:62px;right:12px;max-height:calc(100vh - 80px)}.kpi-notification-wrap{order:0}}

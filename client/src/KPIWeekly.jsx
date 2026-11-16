@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
   Activity, ArrowDownToLine, CheckCircle2, ClipboardList, FileSpreadsheet,
-  Plus, RotateCcw, Search, Pencil, RefreshCw
+  Plus, RotateCcw, Search, Pencil, RefreshCw, Bell, CheckCheck, X
 } from 'lucide-react'
 import './KPIWeekly.css'
 import { cachedRequest, getCachedData, invalidateCachedData, scriptFlowCacheKeys } from './services/dataCache'
@@ -180,8 +180,24 @@ function buildExcelRow(record) {
   }
 }
 
-function Field({ field, value, onChange }) {
+function Field({ field, value, onChange, teamMembers = [], canAssign = false }) {
   const [name, label, type, required] = field
+  if (name === 'sw' && !canAssign) {
+    return <label className="kpi-field"><span>{label}</span><input value={value || 'Not assigned'} readOnly /></label>
+  }
+  if (name === 'sw') {
+    const scripters = teamMembers.filter(member => member.role === 'scripter')
+    return (
+      <label className="kpi-field">
+        <span>{label}</span>
+        <select name={name} value={value} onChange={event => onChange(name, event.target.value)}>
+          <option value="">Unassigned</option>
+          {scripters.map(member => <option key={member.email} value={member.name}>{member.name}</option>)}
+          {value && !scripters.some(member => member.name === value) && <option value={value}>{value} (existing assignment)</option>}
+        </select>
+      </label>
+    )
+  }
   if (type === 'select') {
     return (
       <label className="kpi-field">
@@ -233,6 +249,11 @@ export default function KPIWeekly({ user, signOut }) {
   const [selectedForm, setSelectedForm] = useState(null)
   const [notice, setNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [teamMembers, setTeamMembers] = useState([])
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notificationError, setNotificationError] = useState('')
 
   const totalEstimatedHours = useMemo(() => {
     const hasTime = [form.scriptingTime, form.changesTime, form.testingTime, form.mailingTime]
@@ -292,6 +313,53 @@ export default function KPIWeekly({ user, signOut }) {
   }
 
   useEffect(() => { loadRecords() }, [user?.email])
+
+  async function loadTeamMembers() {
+    try {
+      const response = await fetch('/api/kpi-weekly', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'team' }) })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to load team directory.')
+      setTeamMembers(result.members || [])
+    } catch (error) { setNotice('Could not load team directory: ' + error.message) }
+  }
+
+  async function loadNotifications() {
+    try {
+      const response = await fetch('/api/kpi-weekly', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'notifications' }) })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to load notifications.')
+      setNotifications(result.notifications || [])
+      setUnreadCount(Number(result.unreadCount || 0))
+      setNotificationError('')
+    } catch (error) { setNotificationError(error.message) }
+  }
+
+  async function markNotificationRead(id) {
+    try {
+      const response = await fetch('/api/kpi-weekly', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'read-notification', id }) })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to update notification.')
+      setNotifications(previous => previous.map(item => item.id === id ? { ...item, read: true } : item))
+      setUnreadCount(previous => Math.max(0, previous - 1))
+    } catch (error) { setNotificationError(error.message) }
+  }
+
+  async function markAllNotificationsRead() {
+    try {
+      const response = await fetch('/api/kpi-weekly', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'read-all-notifications' }) })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Unable to update notifications.')
+      setNotifications(previous => previous.map(item => ({ ...item, read: true })))
+      setUnreadCount(0)
+    } catch (error) { setNotificationError(error.message) }
+  }
+
+  useEffect(() => {
+    loadTeamMembers()
+    loadNotifications()
+    const interval = window.setInterval(loadNotifications, 30000)
+    return () => window.clearInterval(interval)
+  }, [user?.email])
 
   async function loadAvailableForms({ force = false } = {}) {
     const cacheKey = scriptFlowCacheKeys.forms(user?.email)
@@ -472,6 +540,7 @@ export default function KPIWeekly({ user, signOut }) {
         </div>
         <div className="kpi-nav-label">REPORTING</div>
         <button type="button" className={activeTab === 'records' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('records')}><FileSpreadsheet size={17} /> KPI Migration</button>
+        {user?.role === 'scripter' && <button type="button" className={activeTab === 'assigned' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('assigned')}><ClipboardList size={17} /> My Assigned Projects</button>}
         <button type="button" className={activeTab === 'form' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={startNewRecord}><Plus size={17} /> New KPI record</button>
         <div className="kpi-available-forms">
           <div className="kpi-available-forms-heading">AVAILABLE FORMS</div>
@@ -496,6 +565,17 @@ export default function KPIWeekly({ user, signOut }) {
             <h2>Team reporting</h2>
           </div>
           <div className="kpi-user-area">
+            <div className="kpi-notification-wrap">
+              <button type="button" className="kpi-notification-trigger" aria-label="Notifications" aria-expanded={showNotifications} onClick={() => { setShowNotifications(value => !value); if (!showNotifications) loadNotifications() }}>
+                <Bell size={19} />{unreadCount > 0 && <span>{unreadCount > 99 ? '99+' : unreadCount}</span>}
+              </button>
+              {showNotifications && <div className="kpi-notification-panel">
+                <div className="kpi-notification-heading"><div><strong>Notifications</strong><small>{unreadCount} unread</small></div><button type="button" aria-label="Close notifications" onClick={() => setShowNotifications(false)}><X size={16}/></button></div>
+                {unreadCount > 0 && <button type="button" className="kpi-notification-read-all" onClick={markAllNotificationsRead}><CheckCheck size={14}/> Mark all as read</button>}
+                {notificationError && <p className="kpi-notification-error">{notificationError}</p>}
+                <div className="kpi-notification-list">{notifications.length ? notifications.map(item => <button type="button" key={item.id} className={'kpi-notification-item ' + (item.read ? 'read' : 'unread')} onClick={() => { if (!item.read) markNotificationRead(item.id); setShowNotifications(false); if (item.recordId) { const record = records.find(row => row.id === item.recordId); if (record) editRecord(record); else setActiveTab('records') } }}><strong>{item.title}</strong><span>{item.message}</span><small>{item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}</small></button>) : <p className="kpi-notification-empty">You are all caught up.</p>}</div>
+              </div>}
+            </div>
             <span className="kpi-preview-label connected"><span /> Google Sheets integration</span>
             {user && <span className="kpi-user-email">{user.email} · {user.role.replace(/_/g, ' ')}</span>}
             <button type="button" className="kpi-button secondary kpi-logout" onClick={signOut}>Sign out</button>
@@ -538,7 +618,7 @@ export default function KPIWeekly({ user, signOut }) {
                     </div>
                     <div className="kpi-fields-grid">
                       {section.fields.map(field => (
-                        <Field key={field[0]} field={field} value={form[field[0]]} onChange={updateField} />
+                        <Field key={field[0]} field={field} value={form[field[0]]} onChange={updateField} teamMembers={teamMembers} canAssign={['admin', 'team_lead'].includes(user?.role)} />
                       ))}
                       {section.title === 'Time and financial information' && (
                         <>
@@ -585,19 +665,19 @@ export default function KPIWeekly({ user, signOut }) {
             </div>
           </form>}
 
-          {activeTab === 'records' && <section className="kpi-submissions">
+          {(activeTab === 'records' || activeTab === 'assigned') && <section className="kpi-submissions">
             <div className="kpi-submissions-heading">
-              <div><h2>All KPI records <span>{records.length}</span></h2><p>Live records loaded directly from the KPI Migration spreadsheet tab.</p></div>
+              <div><h2>{activeTab === 'assigned' ? 'My Assigned Projects' : 'All KPI records'} <span>{activeTab === 'assigned' ? records.filter(item => String(item.sw || '').trim().toLowerCase() === String(user?.email || '').toLowerCase() || teamMembers.some(member => member.email.toLowerCase() === String(user?.email || '').toLowerCase() && member.name.toLowerCase() === String(item.sw || '').trim().toLowerCase())).length : records.length}</span></h2><p>{activeTab === 'assigned' ? 'KPI projects currently assigned to you.' : 'Live records loaded directly from the KPI Migration spreadsheet tab.'}</p></div>
               <div className="kpi-submission-actions">
                 <div className="kpi-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search project or client..." /></div>
                 <button type="button" className="kpi-button secondary" onClick={clearSession} disabled={isLoadingRecords}><RefreshCw size={14} /> Refresh</button>
               </div>
             </div>
-            {isLoadingRecords ? <div className="kpi-empty"><RefreshCw size={22} /><strong>Loading KPI records...</strong></div> : filteredRecords.length ? (
+            {isLoadingRecords ? <div className="kpi-empty"><RefreshCw size={22} /><strong>Loading KPI records...</strong></div> : (activeTab === 'assigned' ? filteredRecords.filter(item => String(item.sw || '').trim().toLowerCase() === String(user?.email || '').toLowerCase() || teamMembers.some(member => member.email.toLowerCase() === String(user?.email || '').toLowerCase() && member.name.toLowerCase() === String(item.sw || '').trim().toLowerCase())) : filteredRecords).length ? (
               <div className="kpi-table-wrap">
                 <table className="kpi-table">
                   <thead><tr><th>Project name</th><th>Project number</th><th>SPM number</th><th>Tester</th><th>PM</th><th>Status</th><th>Est. hours</th><th>Action</th></tr></thead>
-                  <tbody>{filteredRecords.map(item => (
+                  <tbody>{(activeTab === 'assigned' ? filteredRecords.filter(item => String(item.sw || '').trim().toLowerCase() === String(user?.email || '').toLowerCase() || teamMembers.some(member => member.email.toLowerCase() === String(user?.email || '').toLowerCase() && member.name.toLowerCase() === String(item.sw || '').trim().toLowerCase())) : filteredRecords).map(item => (
                     <tr key={item.id || item.sheetRow}>
                       <td><strong>{item.projectName}</strong><small>{item.client || 'No client'}</small></td>
                       <td>{item.projectNumber || '—'}</td>
@@ -616,7 +696,7 @@ export default function KPIWeekly({ user, signOut }) {
                 </table>
               </div>
             ) : (
-              <div className="kpi-empty"><FileSpreadsheet size={24} /><strong>{records.length ? 'No matching entries' : 'No KPI records found'}</strong><p>{records.length ? 'Try another search term.' : 'The KPI spreadsheet does not contain any project records yet.'}</p></div>
+              <div className="kpi-empty"><FileSpreadsheet size={24} /><strong>{activeTab === 'assigned' ? 'No projects assigned to you' : records.length ? 'No matching entries' : 'No KPI records found'}</strong><p>{activeTab === 'assigned' ? 'Projects assigned to you will appear here.' : records.length ? 'Try another search term.' : 'The KPI spreadsheet does not contain any project records yet.'}</p></div>
             )}
           </section>}
 

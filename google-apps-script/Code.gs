@@ -35,7 +35,28 @@ var SF = {
     'a.nesta@bilendi.com': 'admin',
     'g.sardoo@bilendi.com': 'team_lead',
     'n.latreille@bilendi.com': 'scripter'
-  }
+  },
+  TEAM_MEMBERS: [
+    { name: 'Priyanka Sawmynaden', email: 'p.sawmynaden@bilendi.com', role: 'team_lead' },
+    { name: 'Sharon Verloppe', email: 's.verloppe@bilendi.com', role: 'admin' },
+    { name: 'Aakash Chady', email: 'a.chady@bilendi.com', role: 'scripter' },
+    { name: 'Ally Nesta', email: 'a.nesta@bilendi.com', role: 'admin' },
+    { name: 'Ansley Jolicoeur', email: 'a.jolicoeur@bilendi.com', role: 'scripter' },
+    { name: 'Daryl Bontemps', email: 'd.bontemps@bilendi.com', role: 'team_lead' },
+    { name: 'Fayaz Cassim Saib', email: 'f.cassim-saib@bilendi.com', role: 'scripter' },
+    { name: 'Gary Sardoo', email: 'g.sardoo@bilendi.com', role: 'scripter' },
+    { name: 'Hendyson Delphine', email: 'h.delphine@bilendi.com', role: 'scripter' },
+    { name: 'Himeshraj Dussoye', email: 'h.dussoye@bilendi.com', role: 'scripter' },
+    { name: 'Jamily Lai Poon', email: 'j.laipoon@bilendi.com', role: 'scripter' },
+    { name: 'Jérémie Hung', email: 'j.hung@bilendi.com', role: 'scripter' },
+    { name: 'Lata Appadoo', email: 'lata.appadoo@bilendi.com', role: 'scripter' },
+    { name: 'Monish Boodooa', email: 'm.boodooa@bilendi.com', role: 'team_lead' },
+    { name: 'Nastasia Latreille', email: 'n.latreille@bilendi.com', role: 'team_lead' },
+    { name: 'Nirish Gunnea', email: 'n.gunnea@bilendi.com', role: 'scripter' },
+    { name: 'Rayen Sawmynaden', email: 'r.sawmynaden@bilendi.com', role: 'team_lead' },
+    { name: 'Tarun Bissessur', email: 't.bissessur@bilendi.com', role: 'team_lead' },
+    { name: 'Thiyagarajan Vydelingum', email: 't.vydelingum@bilendi.com', role: 'scripter' }
+  ]
 };
 
 /* Both deployments use this same doGet. Only the AUTH URL is used by users. */
@@ -62,6 +83,22 @@ function doPost(e) {
       var reader = verifyUser_(p.user);
       return json_(listKpiRecords_(reader));
     }
+    if (p.operation === 'list_team_members') {
+      var teamReader = verifyUser_(p.user);
+      return json_({ ok: true, members: listTeamMembers_(teamReader) });
+    }
+    if (p.operation === 'list_notifications') {
+      var notificationReader = verifyUser_(p.user);
+      return json_(listNotifications_(notificationReader));
+    }
+    if (p.operation === 'mark_notification_read') {
+      var notificationOwner = verifyUser_(p.user);
+      return json_(markNotificationRead_(notificationOwner, p.id));
+    }
+    if (p.operation === 'mark_all_notifications_read') {
+      var notificationOwnerAll = verifyUser_(p.user);
+      return json_(markAllNotificationsRead_(notificationOwnerAll));
+    }
     if (p.operation === 'list_kpi_projects') {
       var projectReader = verifyUser_(p.user);
       return json_(listKpiProjects_(projectReader, p.query));
@@ -69,7 +106,7 @@ function doPost(e) {
     if (p.operation === 'sync_job') {
       var writer = verifyUser_(p.user);
       requireRole_(writer, ['scripter', 'team_lead', 'admin'], 'You do not have permission to create or edit records.');
-      return json_(saveKpiRecord_(p.job));
+      return json_(saveKpiRecord_(p.job, writer));
     }
     if (p.operation === 'delete_kpi_record') {
       var deleter = verifyUser_(p.user);
@@ -178,6 +215,9 @@ function roleFor_(email) {
     Object.keys(extra || {}).forEach(function(k) { roles[k.toLowerCase()] = String(extra[k]); });
   }
 
+  var directoryMember = teamMemberForEmail_(email);
+  if (directoryMember) roles[email] = directoryMember.role;
+
   var role = roles[email] || SF.DEFAULT_ROLE;
   if (['scripter', 'team_lead', 'admin'].indexOf(role) < 0) {
     throw new Error('Invalid ScriptFlow role configured for ' + email + '.');
@@ -274,7 +314,7 @@ function verifyUser_(context) {
 
 /* ------------------------- KPI Weekly ------------------------------ */
 
-function saveKpiRecord_(job) {
+function saveKpiRecord_(job, user) {
   if (!job || !job.id || !String(job.project_name || '').trim()) {
     throw new Error('Missing KPI record ID or Project Name.');
   }
@@ -307,6 +347,19 @@ function saveKpiRecord_(job) {
     }
     var action = target ? 'updated' : 'inserted';
     if (!target) target = Math.max(lastRow + 1, 2);
+    var swColumn = headers.indexOf('SW') + 1;
+    var previousSw = target && swColumn && action === 'updated'
+      ? String(sheet.getRange(target, swColumn).getDisplayValue() || '').trim() : '';
+
+    if (user && user.role === 'scripter') {
+      job.sw = previousSw;
+    } else if (String(job.sw || '').trim()) {
+      var assignedMember = teamMemberForSw_(job.sw);
+      if ((!assignedMember || assignedMember.role !== 'scripter') && String(job.sw).trim() !== previousSw) {
+        throw new Error('Select a scripter from the ScriptFlow team directory for the SW assignment.');
+      }
+      if (assignedMember) job.sw = assignedMember.name;
+    }
 
     for (var c = 0; c < headers.length; c++) {
       if (headers[c] === SF.ID_HEADER) continue;
@@ -314,6 +367,11 @@ function saveKpiRecord_(job) {
       if (mapped.found) sheet.getRange(target, c + 1).setValue(safeCell_(mapped.value));
     }
     sheet.getRange(target, idColumn).setValue(job.id);
+    try {
+      createAssignmentNotifications_(previousSw, job.sw, job, action);
+    } catch (notificationError) {
+      Logger.log('KPI record saved, but assignment notification could not be created: ' + notificationError);
+    }
     return { ok: true, action: action, row: target };
   } finally {
     lock.releaseLock();
@@ -490,6 +548,165 @@ function projectValueForKey_(project, key) {
   return value === null || value === undefined ? '' : value;
 }
 
+
+
+/* ---------------- Team directory and in-app notifications ----------- */
+
+function listTeamMembers_(user) {
+  return SF.TEAM_MEMBERS.map(function(member) {
+    return {
+      name: member.name,
+      email: member.email,
+      role: member.role,
+      roleLabel: member.role === 'team_lead' ? 'Team-Lead' :
+        member.role === 'admin' ? 'Admin' : 'Scripter'
+    };
+  });
+}
+
+function teamMemberForEmail_(email) {
+  var target = String(email || '').toLowerCase().trim();
+  for (var i = 0; i < SF.TEAM_MEMBERS.length; i++) {
+    if (String(SF.TEAM_MEMBERS[i].email).toLowerCase() === target) return SF.TEAM_MEMBERS[i];
+  }
+  return null;
+}
+
+function teamMemberForSw_(sw) {
+  var target = String(sw || '').toLowerCase().trim();
+  if (!target) return null;
+  for (var i = 0; i < SF.TEAM_MEMBERS.length; i++) {
+    var member = SF.TEAM_MEMBERS[i];
+    if (String(member.name).toLowerCase() === target ||
+        String(member.email).toLowerCase() === target) return member;
+  }
+  return null;
+}
+
+function notificationsSheet_(createIfMissing) {
+  var spreadsheetId = PropertiesService.getScriptProperties().getProperty('KPI_SPREADSHEET_ID') || SF.KPI_ID;
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = spreadsheet.getSheetByName('Notifications');
+  if (!sheet && createIfMissing) {
+    sheet = spreadsheet.insertSheet('Notifications');
+    sheet.getRange(1, 1, 1, 10).setValues([[
+      'Notification ID', 'User Email', 'Title', 'Message', 'Type',
+      'Record ID', 'Project Number', 'Project Name', 'Created At', 'Read At'
+    ]]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function appendNotification_(email, title, message, type, job) {
+  if (!email) return;
+  var sheet = notificationsSheet_(true);
+  sheet.appendRow([
+    Utilities.getUuid(), String(email).toLowerCase(), title, message, type,
+    String(job.id || ''), String(job.project_number || ''),
+    String(job.project_name || ''), new Date(), ''
+  ]);
+}
+
+function createAssignmentNotifications_(previousSw, nextSw, job, action) {
+  var previousMember = teamMemberForSw_(previousSw);
+  var nextMember = teamMemberForSw_(nextSw);
+  if (previousMember && nextMember &&
+      String(previousMember.email).toLowerCase() === String(nextMember.email).toLowerCase()) return;
+  if (!previousMember && !nextMember) return;
+
+  var projectLabel = [
+    String(job.project_number || '').trim(),
+    String(job.project_name || '').trim()
+  ].filter(function(value) { return value; }).join(' — ');
+  if (!projectLabel) projectLabel = 'your KPI project';
+
+  if (nextMember) {
+    appendNotification_(
+      nextMember.email,
+      'New project assigned to you',
+      'You have been assigned to ' + projectLabel + '.',
+      'assignment',
+      job
+    );
+  }
+
+  if (previousMember) {
+    var message = nextMember
+      ? projectLabel + ' has been reassigned to ' + nextMember.name + '.'
+      : projectLabel + ' is no longer assigned to you.';
+    appendNotification_(
+      previousMember.email,
+      nextMember ? 'Project reassigned' : 'Project unassigned',
+      message,
+      'reassignment',
+      job
+    );
+  }
+}
+
+function listNotifications_(user) {
+  var sheet = notificationsSheet_(false);
+  if (!sheet || sheet.getLastRow() < 2) return { ok: true, notifications: [], unreadCount: 0 };
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues();
+  var email = String(user.email || '').toLowerCase();
+  var notifications = [];
+  var unreadCount = 0;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1] || '').toLowerCase() !== email) continue;
+    var readAt = rows[i][9];
+    if (!readAt) unreadCount++;
+    var createdAt = rows[i][8] instanceof Date
+      ? rows[i][8].toISOString() : String(rows[i][8] || '');
+    notifications.push({
+      id: String(rows[i][0] || ''),
+      title: String(rows[i][2] || ''),
+      message: String(rows[i][3] || ''),
+      type: String(rows[i][4] || ''),
+      recordId: String(rows[i][5] || ''),
+      projectNumber: String(rows[i][6] || ''),
+      projectName: String(rows[i][7] || ''),
+      createdAt: createdAt,
+      read: Boolean(readAt)
+    });
+  }
+  notifications.sort(function(a, b) {
+    return String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+  return { ok: true, notifications: notifications.slice(0, 50), unreadCount: unreadCount };
+}
+
+function markNotificationRead_(user, notificationId) {
+  var id = String(notificationId || '').trim();
+  if (!id) throw new Error('A notification ID is required.');
+  var sheet = notificationsSheet_(false);
+  if (!sheet || sheet.getLastRow() < 2) throw new Error('Notification not found.');
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][0]) === id &&
+        String(rows[i][1] || '').toLowerCase() === String(user.email).toLowerCase()) {
+      if (!rows[i][9]) sheet.getRange(i + 2, 10).setValue(new Date());
+      return { ok: true, updated: true };
+    }
+  }
+  throw new Error('Notification not found.');
+}
+
+function markAllNotificationsRead_(user) {
+  var sheet = notificationsSheet_(false);
+  if (!sheet || sheet.getLastRow() < 2) return { ok: true, updated: 0 };
+  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10);
+  var rows = range.getValues();
+  var now = new Date();
+  var updated = 0;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1] || '').toLowerCase() === String(user.email).toLowerCase() && !rows[i][9]) {
+      sheet.getRange(i + 2, 10).setValue(now);
+      updated++;
+    }
+  }
+  return { ok: true, updated: updated };
+}
 
 /* ----------------------- Record deletion --------------------------- */
 
