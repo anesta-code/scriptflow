@@ -180,8 +180,11 @@ function buildExcelRow(record) {
   }
 }
 
-function Field({ field, value, onChange, teamMembers = [] }) {
+function Field({ field, value, onChange, teamMembers = [], canAssign = false }) {
   const [name, label, type, required] = field
+  if (name === 'sw' && !canAssign) {
+    return <label className="kpi-field"><span>{label}</span><input value={value || 'Not assigned'} readOnly /></label>
+  }
   if (name === 'sw') {
     const scripters = teamMembers.filter(member => member.role === 'scripter')
     return (
@@ -615,7 +618,7 @@ export default function KPIWeekly({ user, signOut }) {
                     </div>
                     <div className="kpi-fields-grid">
                       {section.fields.map(field => (
-                        <Field key={field[0]} field={field} value={form[field[0]]} onChange={updateField} teamMembers={teamMembers} />
+                        <Field key={field[0]} field={field} value={form[field[0]]} onChange={updateField} teamMembers={teamMembers} canAssign={['admin', 'team_lead'].includes(user?.role)} />
                       ))}
                       {section.title === 'Time and financial information' && (
                         <>
