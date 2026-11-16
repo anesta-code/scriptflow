@@ -355,10 +355,10 @@ function saveKpiRecord_(job, user) {
       job.sw = previousSw;
     } else if (String(job.sw || '').trim()) {
       var assignedMember = teamMemberForSw_(job.sw);
-      if (!assignedMember || assignedMember.role !== 'scripter') {
+      if ((!assignedMember || assignedMember.role !== 'scripter') && String(job.sw).trim() !== previousSw) {
         throw new Error('Select a scripter from the ScriptFlow team directory for the SW assignment.');
       }
-      job.sw = assignedMember.name;
+      if (assignedMember) job.sw = assignedMember.name;
     }
 
     for (var c = 0; c < headers.length; c++) {
