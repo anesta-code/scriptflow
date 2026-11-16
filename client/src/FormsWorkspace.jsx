@@ -18,6 +18,7 @@ const PROJECT_KEYS = [
   ['project_number', 'Project Number'],
   ['spm_project_number', 'SPM Project Number'],
   ['project_name', 'Project Name'],
+  ['sw', 'Scripter (SW)'],
   ['complexity', 'Complexity'],
   ['client', 'Client'],
   ['pm', 'PM'],
