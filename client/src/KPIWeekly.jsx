@@ -8,10 +8,7 @@ import { cachedRequest, getCachedData, invalidateCachedData, scriptFlowCacheKeys
 const FormsWorkspace = lazy(() => import('./FormsWorkspace'))
 import DynamicFormPage from './DynamicFormPage'
 
-const STATUS_OPTIONS = [
-  'New', 'QNR check', 'Ready', 'In progress', 'QA review',
-  'Revisions', 'Blocked', 'Waiting for information', 'Completed', 'Cancelled'
-]
+const STATUS_OPTIONS = ['Complete', 'Pending', 'Cancel', 'In-progress']
 
 const EXCEL_HEADERS = [
   'SW',
@@ -54,7 +51,7 @@ const INITIAL_FORM = {
   projectName: '',
   tester: '',
   pm: '',
-  status: 'New',
+  status: 'Pending',
   questions: '',
   loi: '',
   level: '',
@@ -125,8 +122,7 @@ const FIELD_SECTIONS = [
       ['testingTime', 'Testing time (hours)', 'decimal'],
       ['mailingTime', 'Mailing time', 'decimal'],
       ['hoursWorked', 'Hours worked', 'decimal'],
-      ['priceScripting', 'Price Scripting', 'decimal'],
-      ['hoursCommissioned', 'Hours Commissioned', 'decimal']
+      ['priceScripting', 'Price Scripting', 'decimal']
     ]
   },
   {
@@ -191,7 +187,7 @@ function Field({ field, value, onChange }) {
       <label className="kpi-field">
         <span>{label}{required && <b className="required-mark"> *</b>}</span>
         <select name={name} value={value} onChange={event => onChange(name, event.target.value)} required={required}>
-          {value && !STATUS_OPTIONS.includes(value) && <option value={value}>{value}</option>}{STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+          {STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
     )
@@ -247,6 +243,13 @@ export default function KPIWeekly({ user, signOut }) {
       numberValue(form.testingTime) +
       numberValue(form.mailingTime)
   }, [form.scriptingTime, form.changesTime, form.testingTime, form.mailingTime])
+
+  const hoursCommissioned = useMemo(() => {
+    if (form.priceScripting === '') return ''
+    const price = Number(form.priceScripting)
+    if (!Number.isFinite(price)) return ''
+    return (price / 7).toFixed(2)
+  }, [form.priceScripting])
 
   const filteredRecords = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -336,6 +339,18 @@ export default function KPIWeekly({ user, signOut }) {
     Object.keys(next).forEach(key => {
       if (record[key] !== undefined && record[key] !== null) next[key] = String(record[key])
     })
+    const existingStatus = String(record.status || 'Pending').trim().toLowerCase()
+    const legacyStatusMap = {
+      complete: 'Complete',
+      completed: 'Complete',
+      pending: 'Pending',
+      cancel: 'Cancel',
+      cancelled: 'Cancel',
+      canceled: 'Cancel',
+      'in progress': 'In-progress',
+      'in-progress': 'In-progress'
+    }
+    next.status = legacyStatusMap[existingStatus] || 'Pending'
     setForm(next)
     setEditingId(record.id)
     setActiveTab('form')
@@ -371,6 +386,7 @@ export default function KPIWeekly({ user, signOut }) {
       ...form,
       projectName: form.projectName.trim(),
       totalEstimatedHours: totalEstimatedHours,
+      hoursCommissioned: hoursCommissioned === '' ? '' : Number(hoursCommissioned),
       id: editingId || (window.crypto && window.crypto.randomUUID
         ? window.crypto.randomUUID()
         : 'kpi-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
@@ -527,6 +543,10 @@ export default function KPIWeekly({ user, signOut }) {
                       {section.title === 'Time and financial information' && (
                         <>
                           <label className="kpi-field">
+                            <span>Hours Commissioned <small className="kpi-auto-label">AUTO-CALCULATED · PRICE SCRIPTING ÷ 7</small></span>
+                            <input type="number" min="0" step="0.01" value={hoursCommissioned} readOnly />
+                          </label>
+                          <label className="kpi-field">
                             <span>Test link (URL)</span>
                             <input type="url" value={form.testLink} onChange={event => updateField('testLink', event.target.value)} placeholder="https://" />
                           </label>
@@ -556,6 +576,7 @@ export default function KPIWeekly({ user, signOut }) {
                 <ul>
                   <li>Project Name is required.</li>
                   <li>Total estimated hours are calculated from scripting, changes, testing and mailing time.</li>
+                  <li>Hours Commissioned is calculated automatically as Price Scripting divided by 7.</li>
                   <li>The test link and scripting time are combined into the existing spreadsheet column.</li>
                   <li>A hidden <strong>__ScriptFlow_ID</strong> is used to identify each submitted record.</li>
                 </ul>
