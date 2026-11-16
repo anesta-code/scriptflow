@@ -106,7 +106,7 @@ function doPost(e) {
     if (p.operation === 'sync_job') {
       var writer = verifyUser_(p.user);
       requireRole_(writer, ['scripter', 'team_lead', 'admin'], 'You do not have permission to create or edit records.');
-      return json_(saveKpiRecord_(p.job));
+      return json_(saveKpiRecord_(p.job, writer));
     }
     if (p.operation === 'delete_kpi_record') {
       var deleter = verifyUser_(p.user);
@@ -314,7 +314,7 @@ function verifyUser_(context) {
 
 /* ------------------------- KPI Weekly ------------------------------ */
 
-function saveKpiRecord_(job) {
+function saveKpiRecord_(job, user) {
   if (!job || !job.id || !String(job.project_name || '').trim()) {
     throw new Error('Missing KPI record ID or Project Name.');
   }
@@ -350,6 +350,16 @@ function saveKpiRecord_(job) {
     var swColumn = headers.indexOf('SW') + 1;
     var previousSw = target && swColumn && action === 'updated'
       ? String(sheet.getRange(target, swColumn).getDisplayValue() || '').trim() : '';
+
+    if (user && user.role === 'scripter') {
+      job.sw = previousSw;
+    } else if (String(job.sw || '').trim()) {
+      var assignedMember = teamMemberForSw_(job.sw);
+      if (!assignedMember || assignedMember.role !== 'scripter') {
+        throw new Error('Select a scripter from the ScriptFlow team directory for the SW assignment.');
+      }
+      job.sw = assignedMember.name;
+    }
 
     for (var c = 0; c < headers.length; c++) {
       if (headers[c] === SF.ID_HEADER) continue;
