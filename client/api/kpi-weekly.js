@@ -41,6 +41,26 @@ export default async function handler(req, res) {
   const session = verifySession(readCookie(req, 'sf_session'), process.env.SCRIPT_FLOW_SESSION_SECRET)
   if (!session) return res.status(401).json({ ok: false, error: 'Please sign in with your Bilendi account.' })
 
+  if (['team', 'notifications', 'read-notification', 'read-all-notifications'].includes(req.body?.action)) {
+    const operationByAction = {
+      team: 'list_team_members',
+      notifications: 'list_notifications',
+      'read-notification': 'mark_notification_read',
+      'read-all-notifications': 'mark_all_notifications_read'
+    }
+    const payload = {
+      operation: operationByAction[req.body.action],
+      user: { email: session.sub, role: session.role }
+    }
+    if (req.body.action === 'read-notification') payload.id = req.body.id
+    try {
+      const result = await callAppsScript(payload)
+      return res.status(200).json(result)
+    } catch (error) {
+      return res.status(502).json({ ok: false, error: error.message || 'Unable to process the request.' })
+    }
+  }
+
   if (req.body?.action === 'list') {
     try {
       const result = await callAppsScript({ operation: 'list_kpi_records', user: { email: session.sub, role: session.role } })
