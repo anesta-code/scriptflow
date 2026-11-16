@@ -36,7 +36,7 @@ export default function DynamicFormPage({ form, user }) {
   const projectQuery = projectSearch.trim()
 
   function valueForProjectKey(project, key) {
-    const values = { project_number: project.projectNumber, spm_project_number: project.spmProjectNumber, project_name: project.projectName, complexity: project.complexity, client: project.client, pm: project.pm, tester: project.tester }
+    const values = { project_number: project.projectNumber, spm_project_number: project.spmProjectNumber, project_name: project.projectName, sw: project.sw, complexity: project.complexity, client: project.client, pm: project.pm, tester: project.tester }
     return values[key] ?? ''
   }
 
