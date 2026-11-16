@@ -524,7 +524,7 @@ function listKpiProjects_(user, query) {
 
   var result = listKpiRecords_(user);
   var projects = (result.records || []).map(function(record) {
-    return { id: record.id, projectNumber: record.projectNumber || '', spmProjectNumber: record.spmProjectNumber || '', projectName: record.projectName || '', complexity: record.complexityAsSpm || '', client: record.client || '', pm: record.pm || '', tester: record.tester || '' };
+    return { id: record.id, projectNumber: record.projectNumber || '', spmProjectNumber: record.spmProjectNumber || '', projectName: record.projectName || '', sw: record.sw || '', complexity: record.complexityAsSpm || '', client: record.client || '', pm: record.pm || '', tester: record.tester || '' };
   }).filter(function(project) {
     if (!String(project.projectNumber).trim() && !String(project.spmProjectNumber).trim()) return false;
     return [project.projectNumber, project.spmProjectNumber, project.projectName, project.client]
@@ -541,7 +541,7 @@ function findKpiProjectById_(projectId) {
 }
 
 function projectValueForKey_(project, key) {
-  var map = { project_number: 'projectNumber', spm_project_number: 'spmProjectNumber', project_name: 'projectName', complexity: 'complexityAsSpm', client: 'client', pm: 'pm', tester: 'tester' };
+  var map = { project_number: 'projectNumber', spm_project_number: 'spmProjectNumber', project_name: 'projectName', sw: 'sw', complexity: 'complexityAsSpm', client: 'client', pm: 'pm', tester: 'tester' };
   var field = map[key];
   if (!field) throw new Error('Unsupported KPI project field key: ' + key);
   var value = project[field];
@@ -748,7 +748,7 @@ var SF_FORMS_PROPERTY = 'SCRIPT_FLOW_FORMS';
 var SF_FORM_ID_HEADER = '__ScriptFlow_ID';
 var SF_FORM_PROJECT_HEADER = '__ScriptFlow_Project_ID';
 var SF_FORM_REVISION_HEADER = '__ScriptFlow_Revision';
-var SF_PROJECT_FIELD_KEYS = ['project_number', 'spm_project_number', 'project_name', 'complexity', 'client', 'pm', 'tester'];
+var SF_PROJECT_FIELD_KEYS = ['project_number', 'spm_project_number', 'project_name', 'sw', 'complexity', 'client', 'pm', 'tester'];
 
 function readFormRegistry_() {
   var props = PropertiesService.getScriptProperties();
