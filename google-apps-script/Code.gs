@@ -1358,7 +1358,11 @@ function reportingConfigHistorySheet_() {
 
 function getReportingData_(user, includeHistory) {
   var result = listKpiRecords_(user);
-  var config = readReportingConfig_();
+  var configLock = LockService.getScriptLock();
+  configLock.waitLock(20000);
+  var config;
+  try { config = readReportingConfig_(); }
+  finally { configLock.releaseLock(); }
   return {
     ok: true, records: result.records || [], config: config,
     teamMembers: SF.TEAM_MEMBERS.map(function(member) { return { name: member.name, email: member.email, role: member.role, roleLabel: member.role === 'team_lead' ? 'Team-Lead' : member.role === 'admin' ? 'Admin' : 'Scripter' }; }),
