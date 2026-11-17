@@ -1291,8 +1291,34 @@ function saveReportingConfig_(input, user) {
     visibility: defaultReportingConfig_().visibility
   };
   if (!config.clusters.length) throw new Error('At least one cluster is required.');
+  var statusNames = ['Pending', 'In-progress', 'Complete', 'Cancel'];
+  config.statuses.forEach(function(status) {
+    if (statusNames.indexOf(String(status.name || '')) < 0) throw new Error('Unsupported reporting status: ' + status.name);
+    status.visible = status.visible !== false;
+    status.active = Boolean(status.active);
+  });
+  var complexityLabels = {};
+  config.complexity.forEach(function(group) {
+    group.label = String(group.label || '').trim();
+    group.min = Number(group.min);
+    group.max = Number(group.max);
+    if (!group.label || !Number.isInteger(group.min) || !Number.isInteger(group.max) || group.min < 1 || group.max > 5 || group.min > group.max) {
+      throw new Error('Complexity groups must have a label and valid ranges from 1 to 5.');
+    }
+    if (complexityLabels[group.label.toLowerCase()]) throw new Error('Complexity group labels must be unique.');
+    complexityLabels[group.label.toLowerCase()] = true;
+  });
+  for (var x = 0; x < config.complexity.length; x++) {
+    for (var y = x + 1; y < config.complexity.length; y++) {
+      var left = config.complexity[x], right = config.complexity[y];
+      if (left.min <= right.max && right.min <= left.max) throw new Error('Complexity ranges cannot overlap.');
+    }
+  }
+  var clusterIds = {};
   var seen = {};
   config.clusters.forEach(function(cluster) {
+    if (clusterIds[String(cluster.id || '').toLowerCase()]) throw new Error('Cluster IDs must be unique.');
+    clusterIds[String(cluster.id || '').toLowerCase()] = true;
     cluster.id = String(cluster.id || '').trim();
     cluster.name = String(cluster.name || '').trim();
     if (!cluster.id || !cluster.name) throw new Error('Every cluster needs an ID and a name.');
@@ -1305,11 +1331,17 @@ function saveReportingConfig_(input, user) {
     cluster.leadEmail = String(cluster.leadEmail || '').toLowerCase().trim();
     if (cluster.leadEmail && !members[cluster.leadEmail]) throw new Error('Cluster lead must be in the ScriptFlow team directory.');
   });
-  var history = reportingConfigHistorySheet_();
-  var sheet = reportingConfigSheet_();
-  var previous = sheet.getLastRow() >= 2 ? String(sheet.getRange(2,2).getValue() || '') : '';
-  sheet.getRange(2,1,1,2).setValues([['reporting', JSON.stringify(config)]]);
-  history.appendRow([new Date(), user.email, 'Updated Reporting Configuration', previous, JSON.stringify(config)]);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var history = reportingConfigHistorySheet_();
+    var sheet = reportingConfigSheet_();
+    var previous = sheet.getLastRow() >= 2 ? String(sheet.getRange(2,2).getValue() || '') : '';
+    sheet.getRange(2,1,1,2).setValues([['reporting', JSON.stringify(config)]]);
+    history.appendRow([new Date(), user.email, 'Updated Reporting Configuration', previous, JSON.stringify(config)]);
+  } finally {
+    lock.releaseLock();
+  }
   return { ok: true, config: config };
 }
 
