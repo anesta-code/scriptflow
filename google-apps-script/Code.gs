@@ -24,40 +24,42 @@
  * There is NO ScriptFlow database. KPI Weekly is the only data store.
  */
 
-var SF = {
-  DOMAIN: 'bilendi.com',
-  KPI_ID: '1Ew-1cROn4Q2XpEV4t3b5jrgjP3MRUB50MDg6ofpuDQY',
-  KPI_TAB: 'KPI weekly',
-  ID_HEADER: '__ScriptFlow_ID',
-  TOKEN_SECONDS: 120,
-  DEFAULT_ROLE: 'scripter',
-  ROLES: {
-    'a.nesta@bilendi.com': 'admin',
-    'g.sardoo@bilendi.com': 'team_lead',
-    'n.latreille@bilendi.com': 'scripter'
-  },
-  TEAM_MEMBERS: [
-    { name: 'Priyanka Sawmynaden', email: 'p.sawmynaden@bilendi.com', role: 'team_lead' },
-    { name: 'Sharon Verloppe', email: 's.verloppe@bilendi.com', role: 'admin' },
-    { name: 'Aakash Chady', email: 'a.chady@bilendi.com', role: 'scripter' },
-    { name: 'Ally Nesta', email: 'a.nesta@bilendi.com', role: 'admin' },
-    { name: 'Ansley Jolicoeur', email: 'a.jolicoeur@bilendi.com', role: 'scripter' },
-    { name: 'Daryl Bontemps', email: 'd.bontemps@bilendi.com', role: 'team_lead' },
-    { name: 'Fayaz Cassim Saib', email: 'f.cassim-saib@bilendi.com', role: 'scripter' },
-    { name: 'Gary Sardoo', email: 'g.sardoo@bilendi.com', role: 'scripter' },
-    { name: 'Hendyson Delphine', email: 'h.delphine@bilendi.com', role: 'scripter' },
-    { name: 'Himeshraj Dussoye', email: 'h.dussoye@bilendi.com', role: 'scripter' },
-    { name: 'Jamily Lai Poon', email: 'j.laipoon@bilendi.com', role: 'scripter' },
-    { name: 'Jérémie Hung', email: 'j.hung@bilendi.com', role: 'scripter' },
-    { name: 'Lata Appadoo', email: 'lata.appadoo@bilendi.com', role: 'scripter' },
-    { name: 'Monish Boodooa', email: 'm.boodooa@bilendi.com', role: 'team_lead' },
-    { name: 'Nastasia Latreille', email: 'n.latreille@bilendi.com', role: 'team_lead' },
-    { name: 'Nirish Gunnea', email: 'n.gunnea@bilendi.com', role: 'scripter' },
-    { name: 'Rayen Sawmynaden', email: 'r.sawmynaden@bilendi.com', role: 'team_lead' },
-    { name: 'Tarun Bissessur', email: 't.bissessur@bilendi.com', role: 'team_lead' },
-    { name: 'Thiyagarajan Vydelingum', email: 't.vydelingum@bilendi.com', role: 'scripter' }
-  ]
-};
+ var SF = {
+    DOMAIN: 'bilendi.com',
+    KPI_ID: '1Ew-1cROn4Q2XpEV4t3b5jrgjP3MRUB50MDg6ofpuDQY',
+    KPI_TAB: 'KPI weekly',
+    ID_HEADER: '__ScriptFlow_ID',
+    TOKEN_SECONDS: 120,
+    DEFAULT_ROLE: 'scripter',
+    ROLES: {
+      'a.nesta@bilendi.com': 'admin',
+      'g.sardoo@bilendi.com': 'team_lead',
+      's.verloppe@bilendi.com': 'admin',
+      'm.boodooa@bilendi.com': 'admin',
+      'n.latreille@bilendi.com': 'scripter'
+    },
+    TEAM_MEMBERS: [
+      { name: 'Priyanka Sawmynaden', email: 'p.sawmynaden@bilendi.com', role: 'team_lead' },
+      { name: 'Sharon Verloppe', email: 's.verloppe@bilendi.com', role: 'admin' },
+      { name: 'Aakash Chady', email: 'a.chady@bilendi.com', role: 'scripter' },
+      { name: 'Ally Nesta', email: 'a.nesta@bilendi.com', role: 'admin' },
+      { name: 'Ansley Jolicoeur', email: 'a.jolicoeur@bilendi.com', role: 'scripter' },
+      { name: 'Daryl Bontemps', email: 'd.bontemps@bilendi.com', role: 'team_lead' },
+      { name: 'Fayaz Cassim Saib', email: 'f.cassim-saib@bilendi.com', role: 'scripter' },
+      { name: 'Gary Sardoo', email: 'g.sardoo@bilendi.com', role: 'scripter' },
+      { name: 'Hendyson Delphine', email: 'h.delphine@bilendi.com', role: 'scripter' },
+      { name: 'Himeshraj Dussoye', email: 'h.dussoye@bilendi.com', role: 'scripter' },
+      { name: 'Jamily Lai Poon', email: 'j.laipoon@bilendi.com', role: 'scripter' },
+      { name: 'Jérémie Hung', email: 'j.hung@bilendi.com', role: 'scripter' },
+      { name: 'Lata Appadoo', email: 'lata.appadoo@bilendi.com', role: 'scripter' },
+      { name: 'Monish Boodooa', email: 'm.boodooa@bilendi.com', role: 'team_lead' },
+      { name: 'Nastasia Latreille', email: 'n.latreille@bilendi.com', role: 'scripter' },
+      { name: 'Nirish Gunnea', email: 'n.gunnea@bilendi.com', role: 'scripter' },
+      { name: 'Rayen Sawmynaden', email: 'r.sawmynaden@bilendi.com', role: 'team_lead' },
+      { name: 'Tarun Bissessur', email: 't.bissessur@bilendi.com', role: 'team_lead' },
+      { name: 'Thiyagarajan Vydelingum', email: 't.vydelingum@bilendi.com', role: 'scripter' }
+    ]
+  };
 
 /* Both deployments use this same doGet. Only the AUTH URL is used by users. */
 function doGet(e) {
@@ -1240,10 +1242,10 @@ function defaultReportingConfig_() {
     ],
     clusters: [
       { id: 'de-es', name: 'DE/ES', leadEmail: 'r.sawmynaden@bilendi.com', members: ['r.sawmynaden@bilendi.com','h.delphine@bilendi.com','n.gunnea@bilendi.com'] },
-      { id: 'international', name: 'INTERNATIONAL', leadEmail: '', members: ['m.boodooa@bilendi.com','a.nesta@bilendi.com','a.jolicoeur@bilendi.com','h.dussoye@bilendi.com','lata.appadoo@bilendi.com','a.chady@bilendi.com'] },
-      { id: 'it', name: 'IT', leadEmail: '', members: ['t.bissessur@bilendi.com','j.hung@bilendi.com'] },
-      { id: 'fr', name: 'FR', leadEmail: '', members: ['s.verloppe@bilendi.com','n.latreille@bilendi.com','d.bontemps@bilendi.com','f.cassim-saib@bilendi.com','g.sardoo@bilendi.com'] },
-      { id: 'uk-be', name: 'UK/BE', leadEmail: '', members: ['p.sawmynaden@bilendi.com','j.laipoon@bilendi.com'] }
+      { id: 'international', name: 'INTERNATIONAL', leadEmail: 'm.boodooa@bilendi.com', members: ['m.boodooa@bilendi.com','a.nesta@bilendi.com','a.jolicoeur@bilendi.com','h.dussoye@bilendi.com','lata.appadoo@bilendi.com','a.chady@bilendi.com','t.vydelingum@bilendi.com'] },
+      { id: 'it', name: 'IT', leadEmail: 't.bissessur@bilendi.com', members: ['t.bissessur@bilendi.com','j.hung@bilendi.com'] },
+      { id: 'fr', name: 'FR', leadEmail: 's.verloppe@bilendi.com', members: ['s.verloppe@bilendi.com','n.latreille@bilendi.com','d.bontemps@bilendi.com','f.cassim-saib@bilendi.com','g.sardoo@bilendi.com'] },
+      { id: 'uk-be', name: 'UK/BE', leadEmail: 'p.sawmynaden@bilendi.com', members: ['p.sawmynaden@bilendi.com','j.laipoon@bilendi.com'] }
     ],
     weekly: { countNewAssignmentsOnly: true, showReassignmentsSeparately: true },
     visibility: { dailyRoles: ['scripter','team_lead','admin'], weeklyRoles: ['team_lead','admin'], configurationRoles: ['team_lead','admin'] }
@@ -1269,10 +1271,19 @@ function readReportingConfig_() {
   try {
     var parsed = JSON.parse(raw);
     var defaults = defaultReportingConfig_();
+    var clusters = Array.isArray(parsed.clusters) ? parsed.clusters : defaults.clusters;
+    var international = clusters.filter(function(cluster) { return cluster.id === 'international'; })[0];
+    if (international && !(international.members || []).some(function(email) { return String(email).toLowerCase() === 't.vydelingum@bilendi.com'; })) {
+      international.members = (international.members || []).concat(['t.vydelingum@bilendi.com']);
+    }
+    defaults.clusters.forEach(function(defaultCluster) {
+      var existing = clusters.filter(function(cluster) { return cluster.id === defaultCluster.id; })[0];
+      if (existing && !existing.leadEmail && defaultCluster.leadEmail) existing.leadEmail = defaultCluster.leadEmail;
+    });
     return {
       statuses: Array.isArray(parsed.statuses) ? parsed.statuses : defaults.statuses,
       complexity: Array.isArray(parsed.complexity) ? parsed.complexity : defaults.complexity,
-      clusters: Array.isArray(parsed.clusters) ? parsed.clusters : defaults.clusters,
+      clusters: clusters,
       weekly: parsed.weekly || defaults.weekly,
       visibility: defaults.visibility
     };
