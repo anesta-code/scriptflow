@@ -81,7 +81,8 @@ export default function Reporting({ user, onBack }) {
   const config = data.config || { statuses: [], complexity: [], clusters: [], weekly: {} }
   const columns = useMemo(() => (data.teamMembers || []).filter(member => member.role === 'scripter').map(member => member.name).sort((a,b) => a.localeCompare(b)), [data.teamMembers])
   const configuredVisible = (config.statuses || []).filter(item => item.visible !== false).map(item => item.name)
-  const visibleStatuses = (showAllStatuses ? STATUS_ORDER : ACTIVE_STATUSES).filter(status => !configuredVisible.length || configuredVisible.includes(status))
+  const activeStatuses = (config.statuses || []).filter(item => item.active).map(item => item.name)
+  const visibleStatuses = (showAllStatuses ? STATUS_ORDER : (activeStatuses.length ? activeStatuses : ACTIVE_STATUSES)).filter(status => !configuredVisible.length || configuredVisible.includes(status))
 
   const filtered = useMemo(() => data.records.filter(record => {
     const status = statusLabel(record.status)
@@ -114,13 +115,14 @@ export default function Reporting({ user, onBack }) {
   const newAssignments = weeklyEvents.filter(event => event.eventType === 'new_assignment')
   const reassignments = weeklyEvents.filter(event => event.eventType === 'reassignment' || event.eventType === 'unassignment')
   const clusterRows = (config.clusters || []).map(cluster => {
-    const assignedNames = (cluster.members || []).map(email => {
-      const member = data.teamMembers.find(item => item.email.toLowerCase() === email.toLowerCase())
-      return member?.name || email
-    })
+    const assignedNames = (cluster.members || []).map(email => data.teamMembers.find(item => item.email.toLowerCase() === email.toLowerCase())).filter(member => member && member.role === 'scripter').map(member => member.name)
+    const lead = data.teamMembers.find(member => member.email.toLowerCase() === String(cluster.leadEmail || '').toLowerCase())
     const perScripter = assignedNames.map(name => ({ name, count: newAssignments.filter(event => event.newScripter === name).length }))
-    return { ...cluster, perScripter, total: perScripter.reduce((sum, item) => sum + item.count, 0) }
+    return { ...cluster, leadName: lead?.name || '', perScripter, total: perScripter.reduce((sum, item) => sum + item.count, 0) }
   })
+  const clusteredEmails = new Set((config.clusters || []).flatMap(cluster => cluster.members || []).map(email => email.toLowerCase()))
+  const unclusteredMembers = data.teamMembers.filter(member => member.role === 'scripter' && !clusteredEmails.has(member.email.toLowerCase()))
+  if (unclusteredMembers.length) clusterRows.push({ id: 'unclustered', name: 'UNASSIGNED CLUSTER', leadName: '', perScripter: unclusteredMembers.map(member => ({ name: member.name, count: newAssignments.filter(event => event.newScripter === member.name).length })), total: unclusteredMembers.reduce((sum, member) => sum + newAssignments.filter(event => event.newScripter === member.name).length, 0) })
   const allWeeklyMembers = clusterRows.flatMap(cluster => cluster.perScripter)
   const weeklyTotals = clusterRows.reduce((sum, cluster) => sum + cluster.total, 0)
 
@@ -189,7 +191,7 @@ export default function Reporting({ user, onBack }) {
         <section className="sf-reporting-panel"><div className="sf-reporting-panel-head"><div><h2>Weekly assignment overview</h2><p>Counts new assignments by assignment timestamp, not record creation date. Reassignments are reported separately.</p></div><label className="sf-reporting-date">Week containing <input type="date" value={weekDate} onChange={e=>setWeekDate(e.target.value)}/></label></div>
           <p className="sf-reporting-week-range">{weekStart.toLocaleDateString()} – {new Date(weekEnd.getTime()-86400000).toLocaleDateString()}</p>
           <div className="sf-reporting-summary"><div><small>New assignments</small><strong>{newAssignments.length}</strong></div><div><small>Reassignments</small><strong>{reassignments.filter(e=>e.eventType==='reassignment').length}</strong></div><div><small>Unassignments</small><strong>{reassignments.filter(e=>e.eventType==='unassignment').length}</strong></div><div><small>Cluster total</small><strong>{weeklyTotals}</strong></div></div>
-          <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Cluster</th>{allWeeklyMembers.map((person,i)=><th key={i}>{person.name}</th>)}<th>Cluster total</th></tr></thead><tbody>{clusterRows.map(cluster=><tr key={cluster.id}><td><b>{cluster.name}</b></td>{allWeeklyMembers.map((person,i)=><td key={i}>{cluster.perScripter.find(p=>p.name===person.name)?.count ?? '—'}</td>)}<td><b>{cluster.total}</b></td></tr>)}<tr><td><b>Team total</b></td>{allWeeklyMembers.map((person,i)=><td key={i}><b>{newAssignments.filter(e=>e.newScripter===person.name).length}</b></td>)}<td><b>{weeklyTotals}</b></td></tr></tbody></table></div>
+          <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Cluster</th>{allWeeklyMembers.map((person,i)=><th key={i}>{person.name}</th>)}<th>Cluster total</th></tr></thead><tbody>{clusterRows.map(cluster=><tr key={cluster.id}><td><b>{cluster.name}</b>{cluster.leadName && <small className="sf-reporting-cluster-lead">Lead: {cluster.leadName}</small>}</td>{allWeeklyMembers.map((person,i)=><td key={i}>{cluster.perScripter.find(p=>p.name===person.name)?.count ?? '—'}</td>)}<td><b>{cluster.total}</b></td></tr>)}<tr><td><b>Team total</b></td>{allWeeklyMembers.map((person,i)=><td key={i}><b>{newAssignments.filter(e=>e.newScripter===person.name).length}</b></td>)}<td><b>{weeklyTotals}</b></td></tr></tbody></table></div>
         </section>
         <section className="sf-reporting-panel"><div className="sf-reporting-panel-head"><div><h2>Assignment changes</h2><p>Reassignments and unassignments are not included in the new-assignment total.</p></div></div><ProjectList records={reassignments.map(event=>({id:event.id,projectName:event.projectName,projectNumber:event.projectNumber,status:event.eventType.replace('_',' '),sw:event.newScripter||'Unassigned',client:event.previousScripter?'From: '+event.previousScripter:'',submittedAt:event.timestamp}))}/></section>
       </>}
@@ -203,7 +205,7 @@ export default function Reporting({ user, onBack }) {
         </div>
         <div className="sf-reporting-config-section"><h3>Status and complexity groupings</h3><p>Initial complexity ranges: Easy 1–2, Medium 3, High 4–5. Active workload view defaults to Pending and In-progress.</p>
           <div className="sf-reporting-config-grid">{draft.complexity.map((item,index)=><label key={item.label}>{item.label}<div><input type="number" min="1" max="5" value={item.min} onChange={e=>setDraft(v=>({...v,complexity:v.complexity.map((c,i)=>i===index?{...c,min:Number(e.target.value)}:c)}))}/><span>to</span><input type="number" min="1" max="5" value={item.max} onChange={e=>setDraft(v=>({...v,complexity:v.complexity.map((c,i)=>i===index?{...c,max:Number(e.target.value)}:c)}))}/></div></label>)}</div>
-          <div className="sf-reporting-status-config">{draft.statuses.map((item,index)=><label key={item.name}><input type="checkbox" checked={item.visible} onChange={e=>setDraft(v=>({...v,statuses:v.statuses.map((s,i)=>i===index?{...s,visible:e.target.checked}:s)}))}/>{item.name}<small>{item.active?'Included in active workload':'Shown in all-status view'}</small></label>)}</div>
+          <div className="sf-reporting-status-config">{draft.statuses.map((item,index)=><div className="sf-reporting-status-setting" key={item.name}><b>{item.name}</b><label><input type="checkbox" checked={item.visible} onChange={e=>setDraft(v=>({...v,statuses:v.statuses.map((s,i)=>i===index?{...s,visible:e.target.checked}:s)}))}/> Visible</label><label><input type="checkbox" checked={item.active} onChange={e=>setDraft(v=>({...v,statuses:v.statuses.map((s,i)=>i===index?{...s,active:e.target.checked}:s)}))}/> Active workload</label></div>)}</div>
         </div>
       </section>}
     </>}
