@@ -81,7 +81,7 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   useEffect(() => { load() }, [])
 
   const config = data.config || { statuses: [], complexity: [], clusters: [], weekly: {} }
-  const columns = useMemo(() => (data.teamMembers || []).filter(member => member.role === 'scripter').map(member => member.name).sort((a,b) => a.localeCompare(b)), [data.teamMembers])
+  const columns = useMemo(() => (data.teamMembers || []).filter(member => (Array.isArray(member.roles) ? member.roles : [member.role]).includes('scripter')).map(member => member.name).sort((a,b) => a.localeCompare(b)), [data.teamMembers])
   const configuredVisible = (config.statuses || []).filter(item => item.visible !== false).map(item => item.name)
   const activeStatuses = (config.statuses || []).filter(item => item.active).map(item => item.name)
   const baseStatuses = showAllStatuses ? STATUS_ORDER : Array.from(new Set((activeStatuses.length ? activeStatuses : ACTIVE_STATUSES).concat(includedStatuses)))
@@ -119,13 +119,13 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   const newAssignments = weeklyEvents.filter(event => event.eventType === 'new_assignment')
   const reassignments = weeklyEvents.filter(event => event.eventType === 'reassignment' || event.eventType === 'unassignment')
   const clusterRows = (config.clusters || []).map(cluster => {
-    const assignedNames = (cluster.members || []).map(email => data.teamMembers.find(item => item.email.toLowerCase() === email.toLowerCase())).filter(member => member && member.role === 'scripter').map(member => member.name)
+    const assignedNames = (cluster.members || []).map(email => data.teamMembers.find(item => item.email.toLowerCase() === email.toLowerCase())).filter(member => member && (Array.isArray(member.roles) ? member.roles : [member.role]).includes('scripter')).map(member => member.name)
     const lead = data.teamMembers.find(member => member.email.toLowerCase() === String(cluster.leadEmail || '').toLowerCase())
     const perScripter = assignedNames.map(name => ({ name, count: newAssignments.filter(event => event.newScripter === name).length }))
     return { ...cluster, leadName: lead?.name || '', perScripter, total: perScripter.reduce((sum, item) => sum + item.count, 0) }
   })
   const clusteredEmails = new Set((config.clusters || []).flatMap(cluster => cluster.members || []).map(email => email.toLowerCase()))
-  const unclusteredMembers = data.teamMembers.filter(member => member.role === 'scripter' && !clusteredEmails.has(member.email.toLowerCase()))
+  const unclusteredMembers = data.teamMembers.filter(member => (Array.isArray(member.roles) ? member.roles : [member.role]).includes('scripter') && !clusteredEmails.has(member.email.toLowerCase()))
   if (unclusteredMembers.length) clusterRows.push({ id: 'unclustered', name: 'UNASSIGNED CLUSTER', leadName: '', perScripter: unclusteredMembers.map(member => ({ name: member.name, count: newAssignments.filter(event => event.newScripter === member.name).length })), total: unclusteredMembers.reduce((sum, member) => sum + newAssignments.filter(event => event.newScripter === member.name).length, 0) })
   const allWeeklyMembers = clusterRows.flatMap(cluster => cluster.perScripter)
   const weeklyTotals = clusterRows.reduce((sum, cluster) => sum + cluster.total, 0)
