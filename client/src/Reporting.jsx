@@ -49,6 +49,8 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   const [busy, setBusy] = useState(true)
   const [notice, setNotice] = useState('')
   const [showAllStatuses, setShowAllStatuses] = useState(false)
+  const [hiddenStatuses, setHiddenStatuses] = useState([])
+  const [includedStatuses, setIncludedStatuses] = useState([])
   const [selected, setSelected] = useState(null)
   const [filterScripter, setFilterScripter] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -82,7 +84,9 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   const columns = useMemo(() => (data.teamMembers || []).filter(member => member.role === 'scripter').map(member => member.name).sort((a,b) => a.localeCompare(b)), [data.teamMembers])
   const configuredVisible = (config.statuses || []).filter(item => item.visible !== false).map(item => item.name)
   const activeStatuses = (config.statuses || []).filter(item => item.active).map(item => item.name)
-  const visibleStatuses = (showAllStatuses ? STATUS_ORDER : (activeStatuses.length ? activeStatuses : ACTIVE_STATUSES)).filter(status => !configuredVisible.length || configuredVisible.includes(status))
+  const baseStatuses = showAllStatuses ? STATUS_ORDER : Array.from(new Set((activeStatuses.length ? activeStatuses : ACTIVE_STATUSES).concat(includedStatuses)))
+  const visibleStatuses = baseStatuses.filter(status => (!configuredVisible.length || configuredVisible.includes(status)) && !hiddenStatuses.includes(status))
+  const displayedColumns = filterScripter === 'all' ? columns : columns.filter(name => name === filterScripter)
 
   const filtered = useMemo(() => data.records.filter(record => {
     const status = statusLabel(record.status)
@@ -99,13 +103,13 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   }), [data.records, visibleStatuses, filterScripter, filterStatus, filterComplexity, search, config, dateField, dateFrom, dateTo])
 
   const dailyRows = useMemo(() => {
-    const labels = (config.complexity || []).map(item => item.label).concat('Unspecified')
+    const labels = (config.complexity || []).slice(0, 3).map(item => item.label)
     return visibleStatuses.flatMap(status => labels.map(complexity => ({
       key: status + '|' + complexity, status, complexity,
-      counts: columns.map(name => filtered.filter(record => String(record.sw || '').trim() === name && statusLabel(record.status) === status && complexityLabel(record.complexityAsSpm, config) === complexity).length),
-      unassigned: filtered.filter(record => !String(record.sw || '').trim() && statusLabel(record.status) === status && complexityLabel(record.complexityAsSpm, config) === complexity).length
-    })).filter(row => row.counts.some(Boolean) || row.unassigned))
-  }, [visibleStatuses, config, columns, filtered])
+      counts: displayedColumns.map(name => filtered.filter(record => String(record.sw || '').trim() === name && statusLabel(record.status) === status && complexityLabel(record.complexityAsSpm, config) === complexity).length),
+      unassigned: filterScripter === 'all' ? filtered.filter(record => !String(record.sw || '').trim() && statusLabel(record.status) === status && complexityLabel(record.complexityAsSpm, config) === complexity).length : 0
+    })))
+  }, [visibleStatuses, config, displayedColumns, filtered, filterScripter])
 
   const [weekStart, weekEnd] = weekBounds(weekDate)
   const weeklyEvents = useMemo(() => data.assignmentHistory.filter(event => {
@@ -170,7 +174,8 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
           <div><small>Unassigned</small><strong>{filtered.filter(r => !String(r.sw || '').trim()).length}</strong></div>
         </section>
         <section className="sf-reporting-panel">
-          <div className="sf-reporting-panel-head"><div><h2>Daily workload by scripter</h2><p>Counts are grouped by status and SPM complexity. Select a count to inspect its projects.</p></div><label className="sf-reporting-toggle"><input type="checkbox" checked={showAllStatuses} onChange={e => setShowAllStatuses(e.target.checked)}/> Show all statuses</label></div>
+          <div className="sf-reporting-panel-head"><div><h2>Daily workload by scripter</h2><p>Every visible status has separate Easy, Medium and High rows. Select a count to inspect its projects.</p></div><label className="sf-reporting-toggle"><input type="checkbox" checked={showAllStatuses} onChange={e => {setShowAllStatuses(e.target.checked);setHiddenStatuses([]);setIncludedStatuses([])}}/> Show all statuses</label></div>
+          <div className="sf-reporting-status-visibility"><span>Visible statuses</span>{STATUS_ORDER.map(status=><label key={status}><input type="checkbox" checked={visibleStatuses.includes(status)} onChange={e=>{if(e.target.checked){setHiddenStatuses(previous=>previous.filter(item=>item!==status));if(!activeStatuses.includes(status))setIncludedStatuses(previous=>previous.includes(status)?previous:[...previous,status])}else{setHiddenStatuses(previous=>previous.includes(status)?previous:[...previous,status]);setIncludedStatuses(previous=>previous.filter(item=>item!==status))}}}/>{status}</label>)}</div>
           {isManager && <div className="sf-reporting-filters">
             <label><Filter size={14}/> Scripter<select value={filterScripter} onChange={e=>setFilterScripter(e.target.value)}><option value="all">All scripters</option>{columns.map(name=><option key={name}>{name}</option>)}</select></label>
             <label>Status<select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="all">All visible statuses</option>{visibleStatuses.map(s=><option key={s}>{s}</option>)}</select></label>
@@ -180,9 +185,9 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
             <label>To<input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></label>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search project or client"/>
           </div>}
-          <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Status</th><th>Complexity</th>{columns.map(name=><th key={name}>{name}</th>)}<th>Unassigned</th><th>Total</th></tr></thead><tbody>
-            {dailyRows.map(row=><tr key={row.key}><td><span className={'sf-reporting-status '+row.status.toLowerCase().replace(/[^a-z]+/g,'-')}>{row.status}</span></td><td>{row.complexity}</td>{row.counts.map((count,index)=><td key={columns[index]}>{count ? <button className="sf-reporting-count" onClick={()=>openDrilldown(row.status,row.complexity,columns[index])}>{count}</button> : '—'}</td>)}<td>{row.unassigned ? <button className="sf-reporting-count" onClick={()=>openDrilldown(row.status,row.complexity,'Unassigned')}>{row.unassigned}</button> : '—'}</td><td><b>{row.counts.reduce((sum,n)=>sum+n,0)+row.unassigned}</b></td></tr>)}
-            {!dailyRows.length && <tr><td colSpan={columns.length+4} className="sf-reporting-empty-cell">No projects match the selected view.</td></tr>}
+          <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Status</th><th>Complexity</th>{displayedColumns.map(name=><th key={name}>{name}</th>)}{filterScripter==='all' && <th>Unassigned</th>}<th>Total</th></tr></thead><tbody>
+            {dailyRows.map(row=><tr key={row.key}><td><span className={'sf-reporting-status '+row.status.toLowerCase().replace(/[^a-z]+/g,'-')}>{row.status}</span></td><td>{row.complexity}</td>{row.counts.map((count,index)=><td key={displayedColumns[index]}>{count ? <button className="sf-reporting-count" onClick={()=>openDrilldown(row.status,row.complexity,displayedColumns[index])}>{count}</button> : '—'}</td>)}{filterScripter==='all' && <td>{row.unassigned ? <button className="sf-reporting-count" onClick={()=>openDrilldown(row.status,row.complexity,'Unassigned')}>{row.unassigned}</button> : '—'}</td>}<td><b>{row.counts.reduce((sum,n)=>sum+n,0)+row.unassigned}</b></td></tr>)}
+            {!dailyRows.length && <tr><td colSpan={displayedColumns.length+(filterScripter==='all'?4:3)} className="sf-reporting-empty-cell">No projects match the selected view.</td></tr>}
           </tbody></table></div>
         </section>
         {selected && <section className="sf-reporting-panel"><div className="sf-reporting-panel-head"><div><h2>{selected.status} · {selected.complexity} · {selected.scripter}</h2><p>{drilldownRecords.length} matching projects</p></div><button className="sf-reporting-icon-btn" onClick={()=>setSelected(null)}><X size={16}/></button></div><ProjectList records={drilldownRecords}/></section>}
