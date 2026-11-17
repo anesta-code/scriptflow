@@ -42,9 +42,9 @@ function mondayOf(date) {
   return d
 }
 
-export default function Reporting({ user, onBack }) {
+export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   const isManager = ['admin', 'team_lead'].includes(user?.role)
-  const [tab, setTab] = useState('daily')
+  const [tab, setTab] = useState(initialTab)
   const [data, setData] = useState({ records: [], assignmentHistory: [], config: null, teamMembers: [] })
   const [busy, setBusy] = useState(true)
   const [notice, setNotice] = useState('')
