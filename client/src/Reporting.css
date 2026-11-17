@@ -47,3 +47,13 @@
 .sf-reporting-footer{max-width:1600px;margin:18px auto 0;text-align:center;color:#929bad;font-size:9px}
 @media(max-width:900px){.sf-reporting-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.sf-reporting-member-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.sf-reporting-page{padding:15px 11px}.sf-reporting-header{align-items:flex-start;flex-direction:column}.sf-reporting-header h1{font-size:23px}.sf-reporting-actions{width:100%}.sf-reporting-panel{padding:13px}.sf-reporting-panel-head{align-items:flex-start;flex-direction:column}.sf-reporting-summary{gap:7px}.sf-reporting-summary>div{padding:11px}.sf-reporting-summary strong{font-size:18px}.sf-reporting-member-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sf-reporting-cluster-top{align-items:flex-start;flex-direction:column}.sf-reporting-cluster-top input,.sf-reporting-cluster-top select{max-width:100%;width:100%}.sf-reporting-config-grid{grid-template-columns:1fr}.sf-reporting-date{white-space:normal}.sf-reporting-filters{align-items:stretch;flex-direction:column}.sf-reporting-filters label{justify-content:space-between}.sf-reporting-filters select,.sf-reporting-filters>input{width:100%;box-sizing:border-box}}
+
+.sf-reporting-cluster-lead{display:block;margin-top:4px;color:#8b95a7;font-size:9px;font-weight:500}
+.sf-reporting-unassigned-members{margin:12px 0;color:#7d8799;font-size:10px;line-height:1.5}
+.sf-reporting-status-config{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sf-reporting-status-setting{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #edf0f5;border-radius:7px;font-size:10px;color:#526078}
+.sf-reporting-status-setting>b{margin-right:auto;color:#354159}
+.sf-reporting-status-setting label{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.sf-reporting-cluster-top .sf-reporting-btn{min-height:34px}
+@media(max-width:900px){.sf-reporting-status-config{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.sf-reporting-status-config{grid-template-columns:1fr}.sf-reporting-status-setting{flex-wrap:wrap}}
