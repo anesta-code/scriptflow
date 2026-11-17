@@ -187,7 +187,7 @@ function Field({ field, value, onChange, teamMembers = [], canAssign = false }) 
     return <label className="kpi-field"><span>{label}</span><input value={value || 'Not assigned'} readOnly /></label>
   }
   if (name === 'sw') {
-    const scripters = teamMembers.filter(member => member.role === 'scripter')
+    const scripters = teamMembers.filter(member => (Array.isArray(member.roles) ? member.roles : [member.role]).includes('scripter'))
     return (
       <label className="kpi-field">
         <span>{label}</span>
