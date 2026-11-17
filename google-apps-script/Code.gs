@@ -62,8 +62,10 @@ var SF = {
 /* Both deployments use this same doGet. Only the AUTH URL is used by users. */
 function doGet(e) {
   var state = e && e.parameter && e.parameter.state ? String(e.parameter.state) : '';
+  var requestedCallback = e && e.parameter && e.parameter.return_to ? String(e.parameter.return_to) : '';
   var template = HtmlService.createTemplateFromFile('Index');
   template.signInState = JSON.stringify(state);
+  template.signInCallbackUrl = JSON.stringify(resolveCallbackUrl_(requestedCallback));
   return template.evaluate()
     .setTitle('ScriptFlow secure sign-in')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -154,19 +156,41 @@ function doPost(e) {
 
 /* -------------------- Workspace authentication -------------------- */
 
+
+/*
+ * Resolve the sign-in return destination.
+ * Production remains the fixed Script Property. Preview URLs are accepted
+ * only for this Vercel project hostname pattern; arbitrary redirect URLs fail.
+ */
+function resolveCallbackUrl_(requested) {
+  var configured = PropertiesService.getScriptProperties().getProperty('VERCEL_CALLBACK_URL');
+  if (!configured || !/^https:\/\//i.test(configured)) {
+    throw new Error('VERCEL_CALLBACK_URL is not configured.');
+  }
+  var production = String(configured).replace(/\/+$/, '');
+  if (!requested) return production + '/';
+
+  var candidate = String(requested).replace(/\/+$/, '');
+  if (candidate === production) return production + '/';
+
+  if (!/^https:\/\/scriptflow-[a-z0-9-]+-scriptflow1\.vercel\.app$/i.test(candidate)) {
+    throw new Error('The requested sign-in destination is not an approved ScriptFlow deployment.');
+  }
+  return candidate + '/';
+}
+
 function getSignInIdentity() {
   var user = authenticatedEmployee_();
   return { success: true, email: user.email, role: user.role };
 }
 
-function issueAuthToken(state) {
+function issueAuthToken(state, requestedCallback) {
   var user = authenticatedEmployee_();
   var props = PropertiesService.getScriptProperties();
   var secret = props.getProperty('AUTH_TOKEN_SECRET');
-  var callback = props.getProperty('VERCEL_CALLBACK_URL');
+  var callback = resolveCallbackUrl_(requestedCallback);
 
   if (!secret || secret.length < 32) throw new Error('AUTH_TOKEN_SECRET is not configured correctly.');
-  if (!callback || !/^https:\/\//i.test(callback)) throw new Error('VERCEL_CALLBACK_URL is not configured.');
   if (typeof state !== 'string' || !/^[A-Za-z0-9_-]{32,160}$/.test(state)) {
     throw new Error('Invalid sign-in state. Return to ScriptFlow and try again.');
   }
@@ -180,7 +204,8 @@ function issueAuthToken(state) {
     iat: now,
     exp: now + SF.TOKEN_SECONDS,
     jti: Utilities.getUuid(),
-    state: state
+    state: state,
+    callbackUrl: callback
   };
   var encoded = b64url_(JSON.stringify(assertion));
   var signature = Utilities.computeHmacSha256Signature(encoded, secret, Utilities.Charset.UTF_8);
@@ -283,6 +308,12 @@ function redeemAuthToken_(p) {
   }
   if (!p.expected_state || !constantEqual_(String(assertion.state || ''), String(p.expected_state))) {
     throw new Error('Sign-in state mismatch.');
+  }
+  if (!p.expected_callback) throw new Error('Missing sign-in callback destination.');
+  var expectedCallback = resolveCallbackUrl_(String(p.expected_callback));
+  if (!constantEqual_(String(assertion.callbackUrl || '').replace(/\/+$/, ''),
+                      expectedCallback.replace(/\/+$/, ''))) {
+    throw new Error('Sign-in callback destination mismatch.');
   }
 
   var email = String(assertion.sub || '').toLowerCase().trim();
