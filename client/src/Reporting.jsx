@@ -193,7 +193,8 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
           <div className="sf-reporting-summary"><div><small>New assignments</small><strong>{newAssignments.length}</strong></div><div><small>Reassignments</small><strong>{reassignments.filter(e=>e.eventType==='reassignment').length}</strong></div><div><small>Unassignments</small><strong>{reassignments.filter(e=>e.eventType==='unassignment').length}</strong></div><div><small>Cluster total</small><strong>{weeklyTotals}</strong></div></div>
           <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Cluster</th>{allWeeklyMembers.map((person,i)=><th key={i}>{person.name}</th>)}<th>Cluster total</th></tr></thead><tbody>{clusterRows.map(cluster=><tr key={cluster.id}><td><b>{cluster.name}</b>{cluster.leadName && <small className="sf-reporting-cluster-lead">Lead: {cluster.leadName}</small>}</td>{allWeeklyMembers.map((person,i)=><td key={i}>{cluster.perScripter.find(p=>p.name===person.name)?.count ?? '—'}</td>)}<td><b>{cluster.total}</b></td></tr>)}<tr><td><b>Team total</b></td>{allWeeklyMembers.map((person,i)=><td key={i}><b>{newAssignments.filter(e=>e.newScripter===person.name).length}</b></td>)}<td><b>{weeklyTotals}</b></td></tr></tbody></table></div>
         </section>
-        <section className="sf-reporting-panel"><div className="sf-reporting-panel-head"><div><h2>Assignment changes</h2><p>Reassignments and unassignments are not included in the new-assignment total.</p></div></div><ProjectList records={reassignments.map(event=>({id:event.id,projectName:event.projectName,projectNumber:event.projectNumber,status:event.eventType.replace('_',' '),sw:event.newScripter||'Unassigned',client:event.previousScripter?'From: '+event.previousScripter:'',submittedAt:event.timestamp}))}/></section>
+        <section className="sf-reporting-panel"><div className="sf-reporting-panel-head"><div><h2>New assignments this week</h2><p>Every new assignment counted in the weekly total, with the person who made the assignment.</p></div></div><AssignmentEventList events={newAssignments}/></section>
+        <section className="sf-reporting-panel"><div className="sf-reporting-panel-head"><div><h2>Assignment changes</h2><p>Reassignments and unassignments are not included in the new-assignment total.</p></div></div><AssignmentEventList events={reassignments}/></section>
       </>}
       {tab === 'config' && isManager && draft && <section className="sf-reporting-panel">
         <div className="sf-reporting-panel-head"><div><h2>Reporting Configuration</h2><p>Changes are shared with everyone and recorded in the configuration history sheet.</p></div><button className="sf-reporting-btn primary" onClick={saveConfig} disabled={busy}><Save size={14}/> Save configuration</button></div>
@@ -212,6 +213,10 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
     </>}
     <footer className="sf-reporting-footer">ScriptFlow · Reporting · Google Sheets</footer>
   </main>
+}
+
+function AssignmentEventList({ events }) {
+  return <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Project</th><th>Project number</th><th>Event</th><th>Previous scripter</th><th>New scripter</th><th>Changed by</th><th>Timestamp</th></tr></thead><tbody>{events.map(event=><tr key={event.id}><td><b>{event.projectName||'—'}</b></td><td>{event.projectNumber||'—'}</td><td>{event.eventType.replace('_',' ')}</td><td>{event.previousScripter||'—'}</td><td>{event.newScripter||'Unassigned'}</td><td>{event.changedBy||'—'}</td><td>{event.timestamp?new Date(event.timestamp).toLocaleString():'—'}</td></tr>)}{!events.length&&<tr><td colSpan="7" className="sf-reporting-empty-cell">No assignment events for this week.</td></tr>}</tbody></table></div>
 }
 
 function ProjectList({ records }) {
