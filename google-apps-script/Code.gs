@@ -1178,10 +1178,10 @@ function reportingSpreadsheet_() {
   return SpreadsheetApp.openById(id);
 }
 
-function assignmentHistorySheet_() {
+function assignmentHistorySheet_(createIfMissing) {
   var ss = reportingSpreadsheet_();
   var sheet = ss.getSheetByName(SF_ASSIGNMENT_HISTORY_TAB);
-  if (!sheet) {
+  if (!sheet && createIfMissing) {
     sheet = ss.insertSheet(SF_ASSIGNMENT_HISTORY_TAB);
     sheet.getRange(1, 1, 1, 9).setValues([[
       'Event ID', 'Event Type', 'Record ID', 'Project Number', 'Project Name',
@@ -1200,7 +1200,7 @@ function appendAssignmentHistory_(previousSw, nextSw, job, user) {
     previous && next ? 'reassignment' :
     previous && !next ? 'unassignment' : '';
   if (!type) return false;
-  var sheet = assignmentHistorySheet_();
+  var sheet = assignmentHistorySheet_(true);
   sheet.appendRow([
     Utilities.getUuid(), type, String(job.id || ''),
     String(job.project_number || ''), String(job.project_name || ''),
@@ -1210,8 +1210,8 @@ function appendAssignmentHistory_(previousSw, nextSw, job, user) {
 }
 
 function readAssignmentHistory_() {
-  var sheet = assignmentHistorySheet_();
-  if (sheet.getLastRow() < 2) return [];
+  var sheet = assignmentHistorySheet_(false);
+  if (!sheet || sheet.getLastRow() < 2) return [];
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues();
   return rows.map(function(row) {
     var date = row[8] instanceof Date ? row[8].toISOString() : String(row[8] || '');
