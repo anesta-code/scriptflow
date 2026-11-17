@@ -56,9 +56,6 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterComplexity, setFilterComplexity] = useState('all')
   const [search, setSearch] = useState('')
-  const [dateField, setDateField] = useState('dateSentToQa')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
   const [weekDate, setWeekDate] = useState(dateInputValue(mondayOf(new Date())))
   const [draft, setDraft] = useState(null)
 
@@ -87,6 +84,22 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
   const baseStatuses = showAllStatuses ? STATUS_ORDER : Array.from(new Set((activeStatuses.length ? activeStatuses : ACTIVE_STATUSES).concat(includedStatuses)))
   const visibleStatuses = baseStatuses.filter(status => (!configuredVisible.length || configuredVisible.includes(status)) && !hiddenStatuses.includes(status))
   const displayedColumns = filterScripter === 'all' ? columns : columns.filter(name => name === filterScripter)
+  const dailyColumnGroups = useMemo(() => {
+    const memberByEmail = new Map((data.teamMembers || []).map(member => [String(member.email || '').toLowerCase(), member]))
+    const groupedNames = new Set()
+    const groups = (config.clusters || []).map(cluster => {
+      const names = (cluster.members || [])
+        .map(email => memberByEmail.get(String(email).toLowerCase()))
+        .filter(member => member && displayedColumns.includes(member.name))
+        .map(member => member.name)
+        .sort((a, b) => a.localeCompare(b))
+      names.forEach(name => groupedNames.add(name))
+      return { id: cluster.id, name: cluster.name, names }
+    }).filter(group => group.names.length)
+    const unclustered = displayedColumns.filter(name => !groupedNames.has(name))
+    if (unclustered.length) groups.push({ id: 'unclustered', name: 'UNASSIGNED CLUSTER', names: unclustered })
+    return groups
+  }, [config.clusters, data.teamMembers, displayedColumns])
 
   const filtered = useMemo(() => data.records.filter(record => {
     const status = statusLabel(record.status)
@@ -94,13 +107,10 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
     if (filterScripter !== 'all' && String(record.sw || '').trim() !== filterScripter) return false
     if (filterStatus !== 'all' && status !== filterStatus) return false
     if (filterComplexity !== 'all' && complexityLabel(record.complexityAsSpm, config) !== filterComplexity) return false
-    const dateValue = String(record[dateField] || '').slice(0, 10)
-    if (dateFrom && (!dateValue || dateValue < dateFrom)) return false
-    if (dateTo && (!dateValue || dateValue > dateTo)) return false
     const term = search.trim().toLowerCase()
     if (term && ![record.projectName, record.projectNumber, record.spmProjectNumber, record.client].some(v => String(v || '').toLowerCase().includes(term))) return false
     return true
-  }), [data.records, visibleStatuses, filterScripter, filterStatus, filterComplexity, search, config, dateField, dateFrom, dateTo])
+  }), [data.records, visibleStatuses, filterScripter, filterStatus, filterComplexity, search, config])
 
   const dailyRows = useMemo(() => {
     const labels = (config.complexity || []).slice(0, 3).map(item => item.label)
@@ -180,12 +190,18 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
             <label><Filter size={14}/> Scripter<select value={filterScripter} onChange={e=>setFilterScripter(e.target.value)}><option value="all">All scripters</option>{columns.map(name=><option key={name}>{name}</option>)}</select></label>
             <label>Status<select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="all">All visible statuses</option>{visibleStatuses.map(s=><option key={s}>{s}</option>)}</select></label>
             <label>Complexity<select value={filterComplexity} onChange={e=>setFilterComplexity(e.target.value)}><option value="all">All complexity</option>{(config.complexity||[]).map(item=><option key={item.label}>{item.label}</option>)}<option>Unspecified</option></select></label>
-            <label>Date field<select value={dateField} onChange={e=>setDateField(e.target.value)}><option value="dateSentToQa">Date sent to QA</option><option value="qnrReceivedOn">QNR received</option><option value="launchDate">Launch date</option></select></label>
-            <label>From<input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/></label>
-            <label>To<input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></label>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search project or client"/>
           </div>}
-          <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Status</th><th>Complexity</th>{displayedColumns.map(name=><th key={name}>{name}</th>)}{filterScripter==='all' && <th>Unassigned</th>}<th>Total</th></tr></thead><tbody>
+          <div className="sf-reporting-table-wrap"><table className="sf-reporting-table sf-reporting-daily-table"><thead>
+            <tr>
+              <th rowSpan={2}>Status</th>
+              <th rowSpan={2}>Complexity</th>
+              {dailyColumnGroups.map(group=><th className="sf-reporting-cluster-heading" key={group.id} colSpan={group.names.length}>{group.name}</th>)}
+              {filterScripter==='all' && <th rowSpan={2}>Unassigned</th>}
+              <th rowSpan={2}>Total</th>
+            </tr>
+            <tr>{dailyColumnGroups.flatMap(group=>group.names.map(name=><th className="sf-reporting-scripter-heading" key={group.id+'-'+name}>{name}</th>))}</tr>
+          </thead><tbody>
             {dailyRows.map(row=><tr key={row.key}><td><span className={'sf-reporting-status '+row.status.toLowerCase().replace(/[^a-z]+/g,'-')}>{row.status}</span></td><td>{row.complexity}</td>{row.counts.map((count,index)=><td key={displayedColumns[index]}>{count ? <button className="sf-reporting-count" onClick={()=>openDrilldown(row.status,row.complexity,displayedColumns[index])}>{count}</button> : '—'}</td>)}{filterScripter==='all' && <td>{row.unassigned ? <button className="sf-reporting-count" onClick={()=>openDrilldown(row.status,row.complexity,'Unassigned')}>{row.unassigned}</button> : '—'}</td>}<td><b>{row.counts.reduce((sum,n)=>sum+n,0)+row.unassigned}</b></td></tr>)}
             {!dailyRows.length && <tr><td colSpan={displayedColumns.length+(filterScripter==='all'?4:3)} className="sf-reporting-empty-cell">No projects match the selected view.</td></tr>}
           </tbody></table></div>
