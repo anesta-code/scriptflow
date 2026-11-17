@@ -1329,6 +1329,7 @@ function getReportingData_(user, includeHistory) {
   var config = readReportingConfig_();
   return {
     ok: true, records: result.records || [], config: config,
+    teamMembers: SF.TEAM_MEMBERS.map(function(member) { return { name: member.name, email: member.email, role: member.role, roleLabel: member.role === 'team_lead' ? 'Team-Lead' : member.role === 'admin' ? 'Admin' : 'Scripter' }; }),
     assignmentHistory: includeHistory ? readAssignmentHistory_() : []
   };
 }
