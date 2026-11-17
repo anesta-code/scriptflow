@@ -18,12 +18,23 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Bind redemption to the exact Vercel hostname receiving this callback.
+    // Apps Script compares this with the callback URL inside the signed assertion.
+    const callbackHost = String(req.headers.host || '').toLowerCase()
+    const isProductionHost = callbackHost === 'scriptflow-bice.vercel.app'
+    const isPreviewHost = /^scriptflow-[a-z0-9-]+-scriptflow1\.vercel\.app$/.test(callbackHost)
+    if (!isProductionHost && !isPreviewHost) {
+      throw new Error('This ScriptFlow deployment is not an approved sign-in destination.')
+    }
+    const expectedCallback = 'https://' + callbackHost + '/'
+
     // The API Apps Script verifies the employee assertion signature, expiry,
-    // audience, allowlisted role and one-time jti before returning identity.
+    // audience, role, one-time jti, state and exact callback destination.
     const redeemed = await callAppsScript({
       operation: 'redeem_auth_token',
       token: token,
-      expected_state: state
+      expected_state: state,
+      expected_callback: expectedCallback
     })
 
     if (!redeemed.user || !redeemed.user.email || !redeemed.user.role) {
