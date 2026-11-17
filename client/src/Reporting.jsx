@@ -54,6 +54,9 @@ export default function Reporting({ user, onBack }) {
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterComplexity, setFilterComplexity] = useState('all')
   const [search, setSearch] = useState('')
+  const [dateField, setDateField] = useState('dateSentToQa')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [weekDate, setWeekDate] = useState(dateInputValue(mondayOf(new Date())))
   const [draft, setDraft] = useState(null)
 
@@ -86,10 +89,13 @@ export default function Reporting({ user, onBack }) {
     if (filterScripter !== 'all' && String(record.sw || '').trim() !== filterScripter) return false
     if (filterStatus !== 'all' && status !== filterStatus) return false
     if (filterComplexity !== 'all' && complexityLabel(record.complexityAsSpm, config) !== filterComplexity) return false
+    const dateValue = String(record[dateField] || '').slice(0, 10)
+    if (dateFrom && (!dateValue || dateValue < dateFrom)) return false
+    if (dateTo && (!dateValue || dateValue > dateTo)) return false
     const term = search.trim().toLowerCase()
     if (term && ![record.projectName, record.projectNumber, record.spmProjectNumber, record.client].some(v => String(v || '').toLowerCase().includes(term))) return false
     return true
-  }), [data.records, visibleStatuses, filterScripter, filterStatus, filterComplexity, search, config])
+  }), [data.records, visibleStatuses, filterScripter, filterStatus, filterComplexity, search, config, dateField, dateFrom, dateTo])
 
   const dailyRows = useMemo(() => {
     const labels = (config.complexity || []).map(item => item.label).concat('Unspecified')
@@ -167,6 +173,9 @@ export default function Reporting({ user, onBack }) {
             <label><Filter size={14}/> Scripter<select value={filterScripter} onChange={e=>setFilterScripter(e.target.value)}><option value="all">All scripters</option>{columns.map(name=><option key={name}>{name}</option>)}</select></label>
             <label>Status<select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="all">All visible statuses</option>{visibleStatuses.map(s=><option key={s}>{s}</option>)}</select></label>
             <label>Complexity<select value={filterComplexity} onChange={e=>setFilterComplexity(e.target.value)}><option value="all">All complexity</option>{(config.complexity||[]).map(item=><option key={item.label}>{item.label}</option>)}<option>Unspecified</option></select></label>
+            <label>Date field<select value={dateField} onChange={e=>setDateField(e.target.value)}><option value="dateSentToQa">Date sent to QA</option><option value="qnrReceivedOn">QNR received</option><option value="launchDate">Launch date</option></select></label>
+            <label>From<input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/></label>
+            <label>To<input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></label>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search project or client"/>
           </div>}
           <div className="sf-reporting-table-wrap"><table className="sf-reporting-table"><thead><tr><th>Status</th><th>Complexity</th>{columns.map(name=><th key={name}>{name}</th>)}<th>Unassigned</th><th>Total</th></tr></thead><tbody>
