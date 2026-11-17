@@ -39,25 +39,25 @@
       'n.latreille@bilendi.com': 'scripter'
     },
     TEAM_MEMBERS: [
-      { name: 'Priyanka Sawmynaden', email: 'p.sawmynaden@bilendi.com', role: 'team_lead' },
-      { name: 'Sharon Verloppe', email: 's.verloppe@bilendi.com', role: 'admin' },
-      { name: 'Aakash Chady', email: 'a.chady@bilendi.com', role: 'scripter' },
-      { name: 'Ally Nesta', email: 'a.nesta@bilendi.com', role: 'admin' },
-      { name: 'Ansley Jolicoeur', email: 'a.jolicoeur@bilendi.com', role: 'scripter' },
-      { name: 'Daryl Bontemps', email: 'd.bontemps@bilendi.com', role: 'team_lead' },
-      { name: 'Fayaz Cassim Saib', email: 'f.cassim-saib@bilendi.com', role: 'scripter' },
-      { name: 'Gary Sardoo', email: 'g.sardoo@bilendi.com', role: 'scripter' },
-      { name: 'Hendyson Delphine', email: 'h.delphine@bilendi.com', role: 'scripter' },
-      { name: 'Himeshraj Dussoye', email: 'h.dussoye@bilendi.com', role: 'scripter' },
-      { name: 'Jamily Lai Poon', email: 'j.laipoon@bilendi.com', role: 'scripter' },
-      { name: 'Jérémie Hung', email: 'j.hung@bilendi.com', role: 'scripter' },
-      { name: 'Lata Appadoo', email: 'lata.appadoo@bilendi.com', role: 'scripter' },
-      { name: 'Monish Boodooa', email: 'm.boodooa@bilendi.com', role: 'team_lead' },
-      { name: 'Nastasia Latreille', email: 'n.latreille@bilendi.com', role: 'scripter' },
-      { name: 'Nirish Gunnea', email: 'n.gunnea@bilendi.com', role: 'scripter' },
-      { name: 'Rayen Sawmynaden', email: 'r.sawmynaden@bilendi.com', role: 'team_lead' },
-      { name: 'Tarun Bissessur', email: 't.bissessur@bilendi.com', role: 'team_lead' },
-      { name: 'Thiyagarajan Vydelingum', email: 't.vydelingum@bilendi.com', role: 'scripter' }
+      { name: 'Priyanka Sawmynaden', email: 'p.sawmynaden@bilendi.com', roles: ['team_lead'] },
+      { name: 'Sharon Verloppe', email: 's.verloppe@bilendi.com', roles: ['admin'] },
+      { name: 'Aakash Chady', email: 'a.chady@bilendi.com', roles: ['scripter'] },
+      { name: 'Ally Nesta', email: 'a.nesta@bilendi.com', roles: ['admin'] },
+      { name: 'Ansley Jolicoeur', email: 'a.jolicoeur@bilendi.com', roles: ['scripter'] },
+      { name: 'Daryl Bontemps', email: 'd.bontemps@bilendi.com', roles: ['team_lead'] },
+      { name: 'Fayaz Cassim Saib', email: 'f.cassim-saib@bilendi.com', roles: ['scripter'] },
+      { name: 'Gary Sardoo', email: 'g.sardoo@bilendi.com', roles: ['scripter'] },
+      { name: 'Hendyson Delphine', email: 'h.delphine@bilendi.com', roles: ['scripter'] },
+      { name: 'Himeshraj Dussoye', email: 'h.dussoye@bilendi.com', roles: ['scripter'] },
+      { name: 'Jamily Lai Poon', email: 'j.laipoon@bilendi.com', roles: ['scripter'] },
+      { name: 'Jérémie Hung', email: 'j.hung@bilendi.com', roles: ['scripter'] },
+      { name: 'Lata Appadoo', email: 'lata.appadoo@bilendi.com', roles: ['scripter'] },
+      { name: 'Monish Boodooa', email: 'm.boodooa@bilendi.com', roles: ['team_lead'] },
+      { name: 'Nastasia Latreille', email: 'n.latreille@bilendi.com', roles: ['scripter'] },
+      { name: 'Nirish Gunnea', email: 'n.gunnea@bilendi.com', roles: ['scripter'] },
+      { name: 'Rayen Sawmynaden', email: 'r.sawmynaden@bilendi.com', roles: ['team_lead'] },
+      { name: 'Tarun Bissessur', email: 't.bissessur@bilendi.com', roles: ['team_lead'] },
+      { name: 'Thiyagarajan Vydelingum', email: 't.vydelingum@bilendi.com', roles: ['scripter'] }
     ]
   };
 
@@ -216,6 +216,7 @@ function issueAuthToken(state, requestedCallback) {
     aud: 'scriptflow-vercel',
     sub: user.email,
     role: user.role,
+    roles: user.roles,
     iat: now,
     exp: now + SF.TOKEN_SECONDS,
     jti: Utilities.getUuid(),
@@ -233,36 +234,46 @@ function issueAuthToken(state, requestedCallback) {
 
 function authenticatedEmployee_() {
   var email = String(Session.getActiveUser().getEmail() || '').toLowerCase().trim();
-  if (!email || email.indexOf('@') < 1) {
-    throw new Error('Google Workspace could not identify your account. Sign in with your Bilendi account.');
-  }
-  if (email.split('@')[1] !== SF.DOMAIN) {
-    throw new Error('Access denied. A Bilendi Google Workspace account is required.');
-  }
-  return { email: email, role: roleFor_(email) };
+  if (!email || email.indexOf('@') < 1) throw new Error('Google Workspace could not identify your account. Sign in with your Bilendi account.');
+  if (email.split('@')[1] !== SF.DOMAIN) throw new Error('Access denied. A Bilendi Google Workspace account is required.');
+  var roles = rolesFor_(email);
+  return { email: email, role: primaryRole_(roles), roles: roles };
 }
 
-/* Explicit roles are held in Script Properties; unknown company users are scripters. */
-function roleFor_(email) {
-  var roles = {};
-  Object.keys(SF.ROLES).forEach(function(k) { roles[k.toLowerCase()] = SF.ROLES[k]; });
-
+function normalizeRoles_(value) {
+  var supplied = Array.isArray(value) ? value : [value], allowed = ['scripter','team_lead','admin'], roles = [];
+  supplied.forEach(function(item) {
+    var role = String(item || '').toLowerCase().trim();
+    if (role && allowed.indexOf(role) < 0) throw new Error('Invalid ScriptFlow role: ' + role);
+    if (role && roles.indexOf(role) < 0) roles.push(role);
+  });
+  if (!roles.length) throw new Error('At least one valid ScriptFlow role is required.');
+  return roles;
+}
+function primaryRole_(roles) {
+  if (roles.indexOf('admin') >= 0) return 'admin';
+  if (roles.indexOf('team_lead') >= 0) return 'team_lead';
+  return 'scripter';
+}
+function rolesFor_(email) {
+  var overrides = {};
+  Object.keys(SF.ROLES).forEach(function(k) { overrides[k.toLowerCase()] = SF.ROLES[k]; });
   var raw = PropertiesService.getScriptProperties().getProperty('SCRIPT_FLOW_USER_ROLES');
   if (raw) {
     var extra;
-    try { extra = JSON.parse(raw); }
-    catch (e) { throw new Error('SCRIPT_FLOW_USER_ROLES must be valid JSON.'); }
-    Object.keys(extra || {}).forEach(function(k) { roles[k.toLowerCase()] = String(extra[k]); });
+    try { extra = JSON.parse(raw); } catch (e) { throw new Error('SCRIPT_FLOW_USER_ROLES must be valid JSON.'); }
+    Object.keys(extra || {}).forEach(function(k) { overrides[k.toLowerCase()] = extra[k]; });
   }
-
-  var directoryMember = teamMemberForEmail_(email);
-  if (directoryMember) roles[email] = directoryMember.role;
-
-  var role = roles[email] || SF.DEFAULT_ROLE;
-  if (['scripter', 'team_lead', 'admin'].indexOf(role) < 0) {
-    throw new Error('Invalid ScriptFlow role configured for ' + email + '.');
-  }
-  return role;
+  var member = teamMemberForEmail_(email);
+  var configured = member ? (member.roles || member.role) : overrides[email];
+  if (configured === undefined || configured === null || configured === '') configured = SF.DEFAULT_ROLE;
+  return normalizeRoles_(configured);
+}
+function roleFor_(email) { return primaryRole_(rolesFor_(email)); }
+function hasRole_(user, role) {
+  if (!user) return false;
+  var roles = Array.isArray(user.roles) ? user.roles : (user.role ? [user.role] : []);
+  return roles.indexOf(role) >= 0;
 }
 
 /* ------------------------- Signed API ------------------------------ */
@@ -333,7 +344,8 @@ function redeemAuthToken_(p) {
 
   var email = String(assertion.sub || '').toLowerCase().trim();
   if (email.split('@')[1] !== SF.DOMAIN) throw new Error('A Bilendi Workspace account is required.');
-  var role = roleFor_(email);
+  var roles = rolesFor_(email);
+  var role = primaryRole_(roles);
   if (role !== assertion.role) throw new Error('Your ScriptFlow role changed during sign-in. Please try again.');
 
   var lock = LockService.getScriptLock();
@@ -346,16 +358,17 @@ function redeemAuthToken_(p) {
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, user: { email: email, role: role } };
+  return { ok: true, user: { email: email, role: role, roles: roles } };
 }
 
 function verifyUser_(context) {
   if (!context || !context.email || !context.role) throw new Error('Missing user context.');
   var email = String(context.email).toLowerCase().trim();
   if (email.split('@')[1] !== SF.DOMAIN) throw new Error('User is not authorised.');
-  var role = roleFor_(email);
+  var roles = rolesFor_(email);
+  var role = primaryRole_(roles);
   if (role !== context.role) throw new Error('User role has changed. Please sign in again.');
-  return { email: email, role: role };
+  return { email: email, role: role, roles: roles };
 }
 
 /* ------------------------- KPI Weekly ------------------------------ */
@@ -397,11 +410,11 @@ function saveKpiRecord_(job, user) {
     var previousSw = target && swColumn && action === 'updated'
       ? String(sheet.getRange(target, swColumn).getDisplayValue() || '').trim() : '';
 
-    if (user && user.role === 'scripter') {
+    if (user && hasRole_(user, 'scripter') && !hasRole_(user, 'team_lead') && !hasRole_(user, 'admin')) {
       job.sw = previousSw;
     } else if (String(job.sw || '').trim()) {
       var assignedMember = teamMemberForSw_(job.sw);
-      if ((!assignedMember || assignedMember.role !== 'scripter') && String(job.sw).trim() !== previousSw) {
+      if ((!assignedMember || !memberHasRole_(assignedMember, 'scripter')) && String(job.sw).trim() !== previousSw) {
         throw new Error('Select a scripter from the ScriptFlow team directory for the SW assignment.');
       }
       if (assignedMember) job.sw = assignedMember.name;
@@ -605,15 +618,17 @@ function projectValueForKey_(project, key) {
 
 /* ---------------- Team directory and in-app notifications ----------- */
 
+function memberHasRole_(member, role) {
+  return normalizeRoles_(member.roles || member.role).indexOf(role) >= 0;
+}
+function roleLabels_(roles) {
+  var labels = { admin: 'Admin', team_lead: 'Team-Lead', scripter: 'Scripter' };
+  return roles.map(function(role) { return labels[role] || role; });
+}
 function listTeamMembers_(user) {
   return SF.TEAM_MEMBERS.map(function(member) {
-    return {
-      name: member.name,
-      email: member.email,
-      role: member.role,
-      roleLabel: member.role === 'team_lead' ? 'Team-Lead' :
-        member.role === 'admin' ? 'Admin' : 'Scripter'
-    };
+    var roles = normalizeRoles_(member.roles || member.role);
+    return { name: member.name, email: member.email, role: primaryRole_(roles), roles: roles, roleLabel: roleLabels_(roles).join(' / ') };
   });
 }
 
@@ -630,8 +645,8 @@ function teamMemberForSw_(sw) {
   if (!target) return null;
   for (var i = 0; i < SF.TEAM_MEMBERS.length; i++) {
     var member = SF.TEAM_MEMBERS[i];
-    if (String(member.name).toLowerCase() === target ||
-        String(member.email).toLowerCase() === target) return member;
+    if ((String(member.name).toLowerCase() === target || String(member.email).toLowerCase() === target) &&
+        memberHasRole_(member, 'scripter')) return member;
   }
   return null;
 }
@@ -764,7 +779,7 @@ function markAllNotificationsRead_(user) {
 /* ----------------------- Record deletion --------------------------- */
 
 function requireRole_(user, allowed, message) {
-  if (!user || allowed.indexOf(user.role) < 0) throw new Error(message || 'You are not allowed to perform this action.');
+  if (!user || !allowed.some(function(role) { return hasRole_(user, role); })) throw new Error(message || 'You are not allowed to perform this action.');
 }
 
 function deleteKpiRecord_(recordId) {
@@ -1372,7 +1387,10 @@ function getReportingData_(user, includeHistory) {
   finally { configLock.releaseLock(); }
   return {
     ok: true, records: result.records || [], config: config,
-    teamMembers: SF.TEAM_MEMBERS.map(function(member) { return { name: member.name, email: member.email, role: member.role, roleLabel: member.role === 'team_lead' ? 'Team-Lead' : member.role === 'admin' ? 'Admin' : 'Scripter' }; }),
+    teamMembers: SF.TEAM_MEMBERS.map(function(member) {
+      var roles = normalizeRoles_(member.roles || member.role);
+      return { name: member.name, email: member.email, role: primaryRole_(roles), roles: roles, roleLabel: roleLabels_(roles).join(' / ') };
+    }),
     assignmentHistory: includeHistory ? readAssignmentHistory_() : []
   };
 }
