@@ -1242,10 +1242,10 @@ function defaultReportingConfig_() {
     ],
     clusters: [
       { id: 'de-es', name: 'DE/ES', leadEmail: 'r.sawmynaden@bilendi.com', members: ['r.sawmynaden@bilendi.com','h.delphine@bilendi.com','n.gunnea@bilendi.com'] },
-      { id: 'international', name: 'INTERNATIONAL', leadEmail: 'm.boodooa@bilendi.com', members: ['m.boodooa@bilendi.com','a.nesta@bilendi.com','a.jolicoeur@bilendi.com','h.dussoye@bilendi.com','lata.appadoo@bilendi.com','a.chady@bilendi.com','t.vydelingum@bilendi.com'] },
-      { id: 'it', name: 'IT', leadEmail: 't.bissessur@bilendi.com', members: ['t.bissessur@bilendi.com','j.hung@bilendi.com'] },
-      { id: 'fr', name: 'FR', leadEmail: 's.verloppe@bilendi.com', members: ['s.verloppe@bilendi.com','n.latreille@bilendi.com','d.bontemps@bilendi.com','f.cassim-saib@bilendi.com','g.sardoo@bilendi.com'] },
-      { id: 'uk-be', name: 'UK/BE', leadEmail: 'p.sawmynaden@bilendi.com', members: ['p.sawmynaden@bilendi.com','j.laipoon@bilendi.com'] }
+      { id: 'international', name: 'INTERNATIONAL', leadEmail: '', members: ['m.boodooa@bilendi.com','a.nesta@bilendi.com','a.jolicoeur@bilendi.com','h.dussoye@bilendi.com','lata.appadoo@bilendi.com','a.chady@bilendi.com','t.vydelingum@bilendi.com'] },
+      { id: 'it', name: 'IT', leadEmail: '', members: ['t.bissessur@bilendi.com','j.hung@bilendi.com'] },
+      { id: 'fr', name: 'FR', leadEmail: '', members: ['s.verloppe@bilendi.com','n.latreille@bilendi.com','d.bontemps@bilendi.com','f.cassim-saib@bilendi.com','g.sardoo@bilendi.com'] },
+      { id: 'uk-be', name: 'UK/BE', leadEmail: '', members: ['p.sawmynaden@bilendi.com','j.laipoon@bilendi.com'] }
     ],
     weekly: { countNewAssignmentsOnly: true, showReassignmentsSeparately: true },
     visibility: { dailyRoles: ['scripter','team_lead','admin'], weeklyRoles: ['team_lead','admin'], configurationRoles: ['team_lead','admin'] }
@@ -1276,16 +1276,12 @@ function readReportingConfig_() {
     if (international && !(international.members || []).some(function(email) { return String(email).toLowerCase() === 't.vydelingum@bilendi.com'; })) {
       international.members = (international.members || []).concat(['t.vydelingum@bilendi.com']);
     }
-    defaults.clusters.forEach(function(defaultCluster) {
-      var existing = clusters.filter(function(cluster) { return cluster.id === defaultCluster.id; })[0];
-      if (existing && !existing.leadEmail && defaultCluster.leadEmail) existing.leadEmail = defaultCluster.leadEmail;
-    });
     return {
       statuses: Array.isArray(parsed.statuses) ? parsed.statuses : defaults.statuses,
       complexity: Array.isArray(parsed.complexity) ? parsed.complexity : defaults.complexity,
       clusters: clusters,
       weekly: parsed.weekly || defaults.weekly,
-      visibility: defaults.visibility
+      visibility: parsed.visibility || defaults.visibility
     };
   } catch (e) { throw new Error('Reporting Configuration is invalid. Ask an admin to correct it.'); }
 }
