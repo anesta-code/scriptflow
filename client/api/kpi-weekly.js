@@ -117,7 +117,7 @@ export default async function handler(req, res) {
   }
   try {
     const result = await callAppsScript({ operation: 'sync_job', user: { email: session.sub, role: session.role }, job: toSheetJob(record) })
-    return res.status(200).json({ ok: true, action: result.action, row: result.row, message: 'KPI Weekly entry saved to Google Sheets.' })
+    return res.status(200).json({ ok: true, action: result.action, row: result.row, historyLogged: result.historyLogged !== false, message: 'KPI Weekly entry saved to Google Sheets.' })
   } catch (error) {
     return res.status(502).json({ ok: false, error: error.message || 'Unable to save to Google Sheets.' })
   }
