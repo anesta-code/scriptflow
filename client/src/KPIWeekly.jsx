@@ -7,6 +7,7 @@ import './KPIWeekly.css'
 import { cachedRequest, getCachedData, invalidateCachedData, scriptFlowCacheKeys } from './services/dataCache'
 const FormsWorkspace = lazy(() => import('./FormsWorkspace'))
 import DynamicFormPage from './DynamicFormPage'
+import Reporting from './Reporting'
 
 const STATUS_OPTIONS = ['Complete', 'Pending', 'Cancel', 'In-progress']
 
@@ -530,6 +531,7 @@ export default function KPIWeekly({ user, signOut }) {
   function clearSession() { loadRecords({ force: true }) }
 
   if (activeTab === 'workspace' && user?.role === 'admin') return <Suspense fallback={<div className="kpi-loading-view">Loading Forms Workspace…</div>}><FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms({ force: true }) }} /></Suspense>
+  if (activeTab === 'reporting') return <Reporting user={user} onBack={() => setActiveTab('records')} />
 
   return (
     <div className="kpi-app">
@@ -540,6 +542,7 @@ export default function KPIWeekly({ user, signOut }) {
         </div>
         <div className="kpi-nav-label">REPORTING</div>
         <button type="button" className={activeTab === 'records' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('records')}><FileSpreadsheet size={17} /> KPI Migration</button>
+        <button type="button" className={activeTab === 'reporting' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('reporting')}><Activity size={17} /> Daily Reporting</button>
         {user?.role === 'scripter' && <button type="button" className={activeTab === 'assigned' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={() => setActiveTab('assigned')}><ClipboardList size={17} /> My Assigned Projects</button>}
         <button type="button" className={activeTab === 'form' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={startNewRecord}><Plus size={17} /> New KPI record</button>
         <div className="kpi-available-forms">
