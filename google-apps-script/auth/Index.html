@@ -25,6 +25,7 @@
   <script>
     var identity = null;
     var state = <?!= signInState ?>;
+    var callbackUrl = <?!= signInCallbackUrl ?>;
 
     function showError(message) {
       var box = document.getElementById('error');
@@ -65,7 +66,7 @@
           button.textContent = 'Continue to ScriptFlow';
           showError(error && error.message ? error.message : String(error));
         })
-        .issueAuthToken(state);
+        .issueAuthToken(state, callbackUrl);
     }
   </script>
 </body>
