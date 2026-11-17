@@ -93,6 +93,19 @@ function doPost(e) {
       var notificationReader = verifyUser_(p.user);
       return json_(listNotifications_(notificationReader));
     }
+    if (p.operation === 'get_reporting_data') {
+      var reportingReader = verifyUser_(p.user);
+      requireRole_(reportingReader, ['scripter', 'team_lead', 'admin'], 'You do not have permission to view reporting.');
+      if (reportingReader.role === 'scripter') {
+        return json_(getReportingData_(reportingReader, false));
+      }
+      return json_(getReportingData_(reportingReader, true));
+    }
+    if (p.operation === 'save_reporting_config') {
+      var reportingAdmin = verifyUser_(p.user);
+      requireRole_(reportingAdmin, ['team_lead', 'admin'], 'Only team leaders and admins can manage Reporting Configuration.');
+      return json_(saveReportingConfig_(p.config, reportingAdmin));
+    }
     if (p.operation === 'mark_notification_read') {
       var notificationOwner = verifyUser_(p.user);
       return json_(markNotificationRead_(notificationOwner, p.id));
@@ -398,12 +411,19 @@ function saveKpiRecord_(job, user) {
       if (mapped.found) sheet.getRange(target, c + 1).setValue(safeCell_(mapped.value));
     }
     sheet.getRange(target, idColumn).setValue(job.id);
+    var historyLogged = true;
+    try {
+      appendAssignmentHistory_(previousSw, job.sw, job, user);
+    } catch (historyError) {
+      historyLogged = false;
+      Logger.log('KPI record saved, but assignment history could not be created: ' + historyError);
+    }
     try {
       createAssignmentNotifications_(previousSw, job.sw, job, action);
     } catch (notificationError) {
       Logger.log('KPI record saved, but assignment notification could not be created: ' + notificationError);
     }
-    return { ok: true, action: action, row: target };
+    return { ok: true, action: action, row: target, historyLogged: historyLogged };
   } finally {
     lock.releaseLock();
   }
@@ -1145,4 +1165,207 @@ function constantEqual_(a, b) {
 function json_(value) {
   return ContentService.createTextOutput(JSON.stringify(value))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ---------------------- Reporting & assignment history ------------- */
+
+var SF_ASSIGNMENT_HISTORY_TAB = 'Assignment History';
+var SF_REPORTING_CONFIG_TAB = 'Reporting Config';
+var SF_REPORTING_CONFIG_HISTORY_TAB = 'Reporting Config History';
+
+function reportingSpreadsheet_() {
+  var id = PropertiesService.getScriptProperties().getProperty('KPI_SPREADSHEET_ID') || SF.KPI_ID;
+  return SpreadsheetApp.openById(id);
+}
+
+function assignmentHistorySheet_(createIfMissing) {
+  var ss = reportingSpreadsheet_();
+  var sheet = ss.getSheetByName(SF_ASSIGNMENT_HISTORY_TAB);
+  if (!sheet && createIfMissing) {
+    sheet = ss.insertSheet(SF_ASSIGNMENT_HISTORY_TAB);
+    sheet.getRange(1, 1, 1, 9).setValues([[
+      'Event ID', 'Event Type', 'Record ID', 'Project Number', 'Project Name',
+      'Previous Scripter', 'New Scripter', 'Changed By', 'Event Timestamp'
+    ]]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function appendAssignmentHistory_(previousSw, nextSw, job, user) {
+  var previous = String(previousSw || '').trim();
+  var next = String(nextSw || '').trim();
+  if (previous.toLowerCase() === next.toLowerCase()) return false;
+  var type = !previous && next ? 'new_assignment' :
+    previous && next ? 'reassignment' :
+    previous && !next ? 'unassignment' : '';
+  if (!type) return false;
+  var sheet = assignmentHistorySheet_(true);
+  sheet.appendRow([
+    Utilities.getUuid(), type, String(job.id || ''),
+    String(job.project_number || ''), String(job.project_name || ''),
+    previous, next, String(user && user.email || ''), new Date()
+  ]);
+  return true;
+}
+
+function readAssignmentHistory_() {
+  var sheet = assignmentHistorySheet_(false);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues();
+  return rows.map(function(row) {
+    var date = row[8] instanceof Date ? row[8].toISOString() : String(row[8] || '');
+    return {
+      id: String(row[0] || ''), eventType: String(row[1] || ''),
+      recordId: String(row[2] || ''), projectNumber: String(row[3] || ''),
+      projectName: String(row[4] || ''), previousScripter: String(row[5] || ''),
+      newScripter: String(row[6] || ''), changedBy: String(row[7] || ''),
+      timestamp: date
+    };
+  }).sort(function(a,b) { return String(b.timestamp).localeCompare(String(a.timestamp)); });
+}
+
+function defaultReportingConfig_() {
+  return {
+    statuses: [
+      { name: 'Pending', visible: true, active: true },
+      { name: 'In-progress', visible: true, active: true },
+      { name: 'Complete', visible: true, active: false },
+      { name: 'Cancel', visible: true, active: false }
+    ],
+    complexity: [
+      { label: 'Easy', min: 1, max: 2 },
+      { label: 'Medium', min: 3, max: 3 },
+      { label: 'High', min: 4, max: 5 }
+    ],
+    clusters: [
+      { id: 'de-es', name: 'DE/ES', leadEmail: 'r.sawmynaden@bilendi.com', members: ['r.sawmynaden@bilendi.com','h.delphine@bilendi.com','n.gunnea@bilendi.com'] },
+      { id: 'international', name: 'INTERNATIONAL', leadEmail: '', members: ['m.boodooa@bilendi.com','a.nesta@bilendi.com','a.jolicoeur@bilendi.com','h.dussoye@bilendi.com','lata.appadoo@bilendi.com','a.chady@bilendi.com'] },
+      { id: 'it', name: 'IT', leadEmail: '', members: ['t.bissessur@bilendi.com','j.hung@bilendi.com'] },
+      { id: 'fr', name: 'FR', leadEmail: '', members: ['s.verloppe@bilendi.com','n.latreille@bilendi.com','d.bontemps@bilendi.com','f.cassim-saib@bilendi.com','g.sardoo@bilendi.com'] },
+      { id: 'uk-be', name: 'UK/BE', leadEmail: '', members: ['p.sawmynaden@bilendi.com','j.laipoon@bilendi.com'] }
+    ],
+    weekly: { countNewAssignmentsOnly: true, showReassignmentsSeparately: true },
+    visibility: { dailyRoles: ['scripter','team_lead','admin'], weeklyRoles: ['team_lead','admin'], configurationRoles: ['team_lead','admin'] }
+  };
+}
+
+function reportingConfigSheet_() {
+  var ss = reportingSpreadsheet_();
+  var sheet = ss.getSheetByName(SF_REPORTING_CONFIG_TAB);
+  if (!sheet) {
+    sheet = ss.insertSheet(SF_REPORTING_CONFIG_TAB);
+    sheet.getRange(1,1,1,2).setValues([['Config Key','Config JSON']]);
+    sheet.getRange(2,1,1,2).setValues([['reporting', JSON.stringify(defaultReportingConfig_())]]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function readReportingConfig_() {
+  var sheet = reportingConfigSheet_();
+  var raw = sheet.getLastRow() >= 2 ? String(sheet.getRange(2,2).getValue() || '') : '';
+  if (!raw) return defaultReportingConfig_();
+  try {
+    var parsed = JSON.parse(raw);
+    var defaults = defaultReportingConfig_();
+    return {
+      statuses: Array.isArray(parsed.statuses) ? parsed.statuses : defaults.statuses,
+      complexity: Array.isArray(parsed.complexity) ? parsed.complexity : defaults.complexity,
+      clusters: Array.isArray(parsed.clusters) ? parsed.clusters : defaults.clusters,
+      weekly: parsed.weekly || defaults.weekly,
+      visibility: defaults.visibility
+    };
+  } catch (e) { throw new Error('Reporting Configuration is invalid. Ask an admin to correct it.'); }
+}
+
+function saveReportingConfig_(input, user) {
+  if (!input || typeof input !== 'object') throw new Error('A valid Reporting Configuration is required.');
+  var members = {};
+  SF.TEAM_MEMBERS.forEach(function(member) { members[member.email.toLowerCase()] = member; });
+  var config = {
+    statuses: Array.isArray(input.statuses) ? input.statuses : defaultReportingConfig_().statuses,
+    complexity: Array.isArray(input.complexity) ? input.complexity : defaultReportingConfig_().complexity,
+    clusters: Array.isArray(input.clusters) ? input.clusters : defaultReportingConfig_().clusters,
+    weekly: { countNewAssignmentsOnly: true, showReassignmentsSeparately: true },
+    visibility: defaultReportingConfig_().visibility
+  };
+  if (!config.clusters.length) throw new Error('At least one cluster is required.');
+  var statusNames = ['Pending', 'In-progress', 'Complete', 'Cancel'];
+  config.statuses.forEach(function(status) {
+    if (statusNames.indexOf(String(status.name || '')) < 0) throw new Error('Unsupported reporting status: ' + status.name);
+    status.visible = status.visible !== false;
+    status.active = Boolean(status.active);
+  });
+  var complexityLabels = {};
+  config.complexity.forEach(function(group) {
+    group.label = String(group.label || '').trim();
+    group.min = Number(group.min);
+    group.max = Number(group.max);
+    if (!group.label || !Number.isInteger(group.min) || !Number.isInteger(group.max) || group.min < 1 || group.max > 5 || group.min > group.max) {
+      throw new Error('Complexity groups must have a label and valid ranges from 1 to 5.');
+    }
+    if (complexityLabels[group.label.toLowerCase()]) throw new Error('Complexity group labels must be unique.');
+    complexityLabels[group.label.toLowerCase()] = true;
+  });
+  for (var x = 0; x < config.complexity.length; x++) {
+    for (var y = x + 1; y < config.complexity.length; y++) {
+      var left = config.complexity[x], right = config.complexity[y];
+      if (left.min <= right.max && right.min <= left.max) throw new Error('Complexity ranges cannot overlap.');
+    }
+  }
+  var clusterIds = {};
+  var seen = {};
+  config.clusters.forEach(function(cluster) {
+    if (clusterIds[String(cluster.id || '').toLowerCase()]) throw new Error('Cluster IDs must be unique.');
+    clusterIds[String(cluster.id || '').toLowerCase()] = true;
+    cluster.id = String(cluster.id || '').trim();
+    cluster.name = String(cluster.name || '').trim();
+    if (!cluster.id || !cluster.name) throw new Error('Every cluster needs an ID and a name.');
+    cluster.members = Array.isArray(cluster.members) ? cluster.members.map(function(email) { return String(email).toLowerCase().trim(); }) : [];
+    cluster.members.forEach(function(email) {
+      if (!members[email]) throw new Error('Cluster member not found in ScriptFlow team directory: ' + email);
+      if (seen[email]) throw new Error('A team member can belong to only one cluster: ' + members[email].name);
+      seen[email] = true;
+    });
+    cluster.leadEmail = String(cluster.leadEmail || '').toLowerCase().trim();
+    if (cluster.leadEmail && !members[cluster.leadEmail]) throw new Error('Cluster lead must be in the ScriptFlow team directory.');
+  });
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var history = reportingConfigHistorySheet_();
+    var sheet = reportingConfigSheet_();
+    var previous = sheet.getLastRow() >= 2 ? String(sheet.getRange(2,2).getValue() || '') : '';
+    sheet.getRange(2,1,1,2).setValues([['reporting', JSON.stringify(config)]]);
+    history.appendRow([new Date(), user.email, 'Updated Reporting Configuration', previous, JSON.stringify(config)]);
+  } finally {
+    lock.releaseLock();
+  }
+  return { ok: true, config: config };
+}
+
+function reportingConfigHistorySheet_() {
+  var ss = reportingSpreadsheet_();
+  var sheet = ss.getSheetByName(SF_REPORTING_CONFIG_HISTORY_TAB);
+  if (!sheet) {
+    sheet = ss.insertSheet(SF_REPORTING_CONFIG_HISTORY_TAB);
+    sheet.getRange(1,1,1,5).setValues([['Changed At','Changed By','Summary','Previous Config JSON','New Config JSON']]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function getReportingData_(user, includeHistory) {
+  var result = listKpiRecords_(user);
+  var configLock = LockService.getScriptLock();
+  configLock.waitLock(20000);
+  var config;
+  try { config = readReportingConfig_(); }
+  finally { configLock.releaseLock(); }
+  return {
+    ok: true, records: result.records || [], config: config,
+    teamMembers: SF.TEAM_MEMBERS.map(function(member) { return { name: member.name, email: member.email, role: member.role, roleLabel: member.role === 'team_lead' ? 'Team-Lead' : member.role === 'admin' ? 'Admin' : 'Scripter' }; }),
+    assignmentHistory: includeHistory ? readAssignmentHistory_() : []
+  };
 }

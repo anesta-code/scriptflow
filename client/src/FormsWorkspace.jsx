@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Plus, RefreshCw, Pencil, Trash2, FileSpreadsheet, Save, X } from 'lucide-react'
+import { ArrowLeft, Plus, RefreshCw, Pencil, Trash2, FileSpreadsheet, Save, X, Settings2 } from 'lucide-react'
 import './FormsWorkspace.css'
 import { cachedRequest, getCachedData, invalidateCachedData, scriptFlowCacheKeys } from './services/dataCache'
 
@@ -27,7 +27,7 @@ const PROJECT_KEYS = [
 
 const blankForm = { id: '', name: '', spreadsheetUrl: '', sheetName: '', headerRow: '1', fieldMappings: {}, fields: [] }
 
-export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
+export default function FormsWorkspace({ user, onBack, onOpenReportingConfig, initialFormId = '' }) {
   const isAdmin = user?.role === 'admin'
   const canDelete = ['team_lead', 'admin'].includes(user?.role)
   const [forms, setForms] = useState([])
@@ -148,6 +148,7 @@ export default function FormsWorkspace({ user, onBack, initialFormId = '' }) {
         <button className="sf-forms-button light" onClick={onBack}><ArrowLeft size={15}/> KPI Weekly</button>
         <button className="sf-forms-button light" onClick={() => loadForms({ force: true })} disabled={busy}><RefreshCw size={14}/> Refresh</button>
         {isAdmin && <button className="sf-forms-button primary" onClick={addForm}><Plus size={15}/> Add form</button>}
+        {onOpenReportingConfig && <button className="sf-forms-button light" onClick={onOpenReportingConfig}><Settings2 size={15}/> Reporting Configuration</button>}
       </div>
     </header>
     {notice && <p className="sf-forms-notice">{notice}</p>}

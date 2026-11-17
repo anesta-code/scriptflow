@@ -1,0 +1,61 @@
+.sf-reporting-page{min-height:100vh;background:#f5f7fb;color:#172033;padding:clamp(16px,2.4vw,34px);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+.sf-reporting-header{max-width:1600px;margin:0 auto 20px;display:flex;align-items:flex-end;justify-content:space-between;gap:18px}
+.sf-reporting-eyebrow{font-size:10px;font-weight:800;letter-spacing:1.3px;color:#8491a9}
+.sf-reporting-header h1{font-size:28px;margin:5px 0}.sf-reporting-header p{font-size:12px;color:#7d8799;margin:0}
+.sf-reporting-actions{display:flex;gap:8px;flex-wrap:wrap}
+.sf-reporting-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:9px 13px;border:1px solid #dfe4ed;border-radius:8px;background:#fff;color:#344158;font-size:11px;font-weight:700;cursor:pointer}
+.sf-reporting-btn.primary{background:#3159d9;border-color:#3159d9;color:#fff}.sf-reporting-btn:disabled{opacity:.55;cursor:wait}
+.sf-reporting-tabs{max-width:1600px;margin:0 auto 16px;display:flex;gap:5px;border-bottom:1px solid #e3e8f0;overflow:auto}
+.sf-reporting-tabs button{display:flex;align-items:center;gap:7px;padding:12px 14px;border:0;border-bottom:2px solid transparent;background:transparent;color:#66748a;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}
+.sf-reporting-tabs button.active{border-bottom-color:#3159d9;color:#3159d9}
+.sf-reporting-notice{max-width:1600px;margin:0 auto 14px;padding:11px 14px;border:1px solid #dce6fa;border-radius:8px;background:#fff;color:#425577;font-size:11px}
+.sf-reporting-summary{max-width:1600px;margin:0 auto 14px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.sf-reporting-summary>div{display:flex;flex-direction:column;gap:7px;padding:15px 17px;border:1px solid #e7ebf2;border-radius:11px;background:#fff}
+.sf-reporting-summary small{font-size:10px;color:#7d8799}.sf-reporting-summary strong{font-size:22px;color:#25334b}
+.sf-reporting-panel{max-width:1600px;margin:0 auto 15px;padding:18px;border:1px solid #e7ebf2;border-radius:12px;background:#fff;box-shadow:0 2px 8px rgba(22,34,58,.035)}
+.sf-reporting-panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
+.sf-reporting-panel-head h2{font-size:14px;margin:0 0 5px}.sf-reporting-panel-head p{font-size:10px;color:#7d8799;margin:0;line-height:1.5}
+.sf-reporting-toggle,.sf-reporting-date{display:flex;align-items:center;gap:7px;font-size:10px;color:#526078;white-space:nowrap}
+.sf-reporting-date input,.sf-reporting-filters input,.sf-reporting-filters select,.sf-reporting-cluster input,.sf-reporting-cluster select,.sf-reporting-config-grid input{min-height:36px;border:1px solid #dfe4ed;border-radius:7px;padding:7px 9px;background:#fff;color:#28344a;font:inherit;font-size:11px}
+.sf-reporting-filters{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:13px}
+.sf-reporting-filters label{display:flex;align-items:center;gap:6px;color:#6d788d;font-size:10px}
+.sf-reporting-filters select{min-width:130px}.sf-reporting-filters>input{flex:1;min-width:170px}
+.sf-reporting-table-wrap{max-width:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+.sf-reporting-table{width:100%;border-collapse:collapse;min-width:680px}
+.sf-reporting-table th{padding:11px 10px;text-align:left;border-bottom:1px solid #e9edf3;color:#8792a5;font-size:9px;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.sf-reporting-table td{padding:11px 10px;border-bottom:1px solid #f0f2f6;color:#56627a;font-size:10px;white-space:nowrap}
+.sf-reporting-table tbody tr:last-child td{border-bottom:0}.sf-reporting-table tbody tr:hover{background:#f8faff}
+.sf-reporting-count{min-width:25px;min-height:25px;border:0;border-radius:6px;background:#edf2ff;color:#3159d9;font-size:11px;font-weight:800;cursor:pointer}
+.sf-reporting-count:hover{background:#dfe7ff}
+.sf-reporting-status{display:inline-block;padding:4px 8px;border-radius:20px;background:#edf1f7;color:#53627a;font-size:9px;font-weight:700}
+.sf-reporting-status.pending{background:#fff4dd;color:#956617}.sf-reporting-status.in-progress{background:#eaf0ff;color:#3159d9}.sf-reporting-status.complete{background:#e8f6ee;color:#26734b}.sf-reporting-status.cancel{background:#fcebea;color:#a83a3a}
+.sf-reporting-empty-cell,.sf-reporting-empty{text-align:center;padding:28px!important;color:#8792a5!important}
+.sf-reporting-icon-btn{width:32px;height:32px;display:grid;place-items:center;border:1px solid #e3e8f0;border-radius:7px;background:#fff;color:#667085;cursor:pointer}
+.sf-reporting-week-range{margin:0 0 12px;color:#7d8799;font-size:10px}
+.sf-reporting-config-section{padding:17px 0;border-top:1px solid #edf0f5}.sf-reporting-config-section h3{font-size:13px;margin:0 0 5px}.sf-reporting-config-section>p{font-size:10px;line-height:1.5;color:#7d8799;margin:0 0 13px}
+.sf-reporting-cluster{padding:14px;margin:10px 0;border:1px solid #e6ebf3;border-radius:9px;background:#fbfcfe}
+.sf-reporting-cluster-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sf-reporting-cluster-top>input{font-weight:750;font-size:12px}.sf-reporting-cluster-top label{display:flex;align-items:center;gap:7px;color:#657188;font-size:10px}
+.sf-reporting-member-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sf-reporting-member-grid label{display:flex;align-items:center;gap:7px;padding:8px;border:1px solid #edf0f5;border-radius:7px;background:#fff;font-size:10px;color:#354159}
+.sf-reporting-member-grid label span{display:grid;gap:2px}.sf-reporting-member-grid small{font-size:8px;color:#929bad}
+.sf-reporting-config-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sf-reporting-config-grid>label{display:grid;gap:7px;font-size:10px;font-weight:700;color:#526078}
+.sf-reporting-config-grid>label>div{display:flex;align-items:center;gap:7px}.sf-reporting-config-grid input{width:65px}
+.sf-reporting-status-config{display:flex;gap:15px;flex-wrap:wrap;margin-top:14px}
+.sf-reporting-status-config label{display:flex;align-items:center;gap:6px;font-size:10px;color:#526078}.sf-reporting-status-config small{color:#929bad}
+.sf-reporting-footer{max-width:1600px;margin:18px auto 0;text-align:center;color:#929bad;font-size:9px}
+@media(max-width:900px){.sf-reporting-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.sf-reporting-member-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.sf-reporting-page{padding:15px 11px}.sf-reporting-header{align-items:flex-start;flex-direction:column}.sf-reporting-header h1{font-size:23px}.sf-reporting-actions{width:100%}.sf-reporting-panel{padding:13px}.sf-reporting-panel-head{align-items:flex-start;flex-direction:column}.sf-reporting-summary{gap:7px}.sf-reporting-summary>div{padding:11px}.sf-reporting-summary strong{font-size:18px}.sf-reporting-member-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sf-reporting-cluster-top{align-items:flex-start;flex-direction:column}.sf-reporting-cluster-top input,.sf-reporting-cluster-top select{max-width:100%;width:100%}.sf-reporting-config-grid{grid-template-columns:1fr}.sf-reporting-date{white-space:normal}.sf-reporting-filters{align-items:stretch;flex-direction:column}.sf-reporting-filters label{justify-content:space-between}.sf-reporting-filters select,.sf-reporting-filters>input{width:100%;box-sizing:border-box}}
+
+.sf-reporting-cluster-lead{display:block;margin-top:4px;color:#8b95a7;font-size:9px;font-weight:500}
+.sf-reporting-unassigned-members{margin:12px 0;color:#7d8799;font-size:10px;line-height:1.5}
+.sf-reporting-status-config{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sf-reporting-status-setting{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #edf0f5;border-radius:7px;font-size:10px;color:#526078}
+.sf-reporting-status-setting>b{margin-right:auto;color:#354159}
+.sf-reporting-status-setting label{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.sf-reporting-cluster-top .sf-reporting-btn{min-height:34px}
+@media(max-width:900px){.sf-reporting-status-config{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.sf-reporting-status-config{grid-template-columns:1fr}.sf-reporting-status-setting{flex-wrap:wrap}}
+
+.sf-reporting-config-grid>label>input[type=text]{width:100%;box-sizing:border-box}
