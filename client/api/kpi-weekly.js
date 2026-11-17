@@ -41,6 +41,34 @@ export default async function handler(req, res) {
   const session = verifySession(readCookie(req, 'sf_session'), process.env.SCRIPT_FLOW_SESSION_SECRET)
   if (!session) return res.status(401).json({ ok: false, error: 'Please sign in with your Bilendi account.' })
 
+  if (req.body?.action === 'reporting-data') {
+    try {
+      const result = await callAppsScript({
+        operation: 'get_reporting_data',
+        user: { email: session.sub, role: session.role }
+      })
+      return res.status(200).json(result)
+    } catch (error) {
+      return res.status(502).json({ ok: false, error: error.message || 'Unable to load reporting data.' })
+    }
+  }
+
+  if (req.body?.action === 'save-reporting-config') {
+    if (!['team_lead', 'admin'].includes(session.role)) {
+      return res.status(403).json({ ok: false, error: 'Only team leaders and admins can manage Reporting Configuration.' })
+    }
+    try {
+      const result = await callAppsScript({
+        operation: 'save_reporting_config',
+        user: { email: session.sub, role: session.role },
+        config: req.body.config
+      })
+      return res.status(200).json(result)
+    } catch (error) {
+      return res.status(502).json({ ok: false, error: error.message || 'Unable to save Reporting Configuration.' })
+    }
+  }
+
   if (['team', 'notifications', 'read-notification', 'read-all-notifications'].includes(req.body?.action)) {
     const operationByAction = {
       team: 'list_team_members',
