@@ -57,3 +57,5 @@
 .sf-reporting-cluster-top .sf-reporting-btn{min-height:34px}
 @media(max-width:900px){.sf-reporting-status-config{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.sf-reporting-status-config{grid-template-columns:1fr}.sf-reporting-status-setting{flex-wrap:wrap}}
+
+.sf-reporting-config-grid>label>input[type=text]{width:100%;box-sizing:border-box}
