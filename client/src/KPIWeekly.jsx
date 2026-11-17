@@ -480,7 +480,7 @@ export default function KPIWeekly({ user, signOut }) {
       setActiveTab('records')
       invalidateCachedData(scriptFlowCacheKeys.kpiRecords(user?.email))
       await loadRecords({ force: true })
-      setNotice((result.action === 'updated' ? 'Updated existing KPI record' : 'Added new KPI record') + ' successfully (spreadsheet row ' + result.row + ').')
+      setNotice((result.action === 'updated' ? 'Updated existing KPI record' : 'Added new KPI record') + ' successfully (spreadsheet row ' + result.row + ').' + (result.historyLogged === false ? ' Warning: the assignment history could not be recorded; contact an admin before relying on weekly totals.' : ''))
     } catch (error) {
       setNotice('Google Sheets save failed: ' + error.message + ' Your form data is still here; you can retry.')
     } finally {
