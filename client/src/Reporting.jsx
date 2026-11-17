@@ -144,7 +144,7 @@ export default function Reporting({ user, onBack, initialTab = 'daily' }) {
     finally { setBusy(false) }
   }
   function openDrilldown(status, complexity, scripter) { setSelected({ status, complexity, scripter }) }
-  const drilldownRecords = selected ? data.records.filter(record =>
+  const drilldownRecords = selected ? filtered.filter(record =>
     statusLabel(record.status) === selected.status &&
     complexityLabel(record.complexityAsSpm, config) === selected.complexity &&
     (selected.scripter === 'Unassigned' ? !String(record.sw || '').trim() : String(record.sw || '').trim() === selected.scripter)
