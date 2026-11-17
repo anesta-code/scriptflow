@@ -394,7 +394,7 @@ export default function KPIWeekly({ user, signOut }) {
   }
 
   function openFormsWorkspace() {
-    if (user?.role !== 'admin') return
+    if (!['admin', 'team_lead'].includes(user?.role)) return
     setSelectedFormId('')
     setSelectedForm(null)
     setActiveTab('workspace')
@@ -530,8 +530,9 @@ export default function KPIWeekly({ user, signOut }) {
 
   function clearSession() { loadRecords({ force: true }) }
 
-  if (activeTab === 'workspace' && user?.role === 'admin') return <Suspense fallback={<div className="kpi-loading-view">Loading Forms Workspace…</div>}><FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms({ force: true }) }} /></Suspense>
+  if (activeTab === 'workspace' && ['admin', 'team_lead'].includes(user?.role)) return <Suspense fallback={<div className="kpi-loading-view">Loading Forms Workspace…</div>}><FormsWorkspace user={user} onBack={() => { setActiveTab('records'); loadAvailableForms({ force: true }) }} onOpenReportingConfig={() => setActiveTab('reporting-config')} /></Suspense>
   if (activeTab === 'reporting') return <Reporting user={user} onBack={() => setActiveTab('records')} />
+  if (activeTab === 'reporting-config') return <Reporting user={user} initialTab="config" onBack={() => setActiveTab('workspace')} />
 
   return (
     <div className="kpi-app">
@@ -553,7 +554,7 @@ export default function KPIWeekly({ user, signOut }) {
             </button>
           )) : <div className="kpi-forms-loading">No forms added yet.</div>}
         </div>
-        {user?.role === 'admin' && <button type="button" className={activeTab === 'workspace' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={openFormsWorkspace}><ClipboardList size={17} /> Forms workspace</button>}
+        {['admin', 'team_lead'].includes(user?.role) && <button type="button" className={activeTab === 'workspace' || activeTab === 'reporting-config' ? 'kpi-nav-item active' : 'kpi-nav-item'} onClick={openFormsWorkspace}><ClipboardList size={17} /> Forms workspace</button>}
         <div className="kpi-sidebar-note">
           <span className="kpi-live-dot" />
           Google Sheets mode
