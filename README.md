@@ -1,304 +1,281 @@
 # ScriptFlow
 
-**A central reporting workspace for Bilendi scripting operations.**
+**A central reporting and operational workspace for Bilendi scripting teams.**
 
-ScriptFlow gives the team one consistent web application for accessing KPI Weekly reporting and other operational forms, while keeping each form connected to its existing Google Sheets spreadsheet. It reduces the need to move between separate spreadsheets and provides a clearer, role-controlled way to create, review, update and manage reporting records.
+ScriptFlow brings KPI Weekly, team reporting, assignment visibility and additional spreadsheet-based forms into one application. It centralises access and workflows while preserving Google Sheets as the source of truth.
 
-- **Live application:** [scriptflow-bice.vercel.app](https://scriptflow-bice.vercel.app/)
-- **Source code:** [anesta-code/scriptflow](https://github.com/anesta-code/scriptflow)
-- **Hosting:** Vercel
-- **Application backend:** Google Apps Script
-- **Data storage:** Existing Google Sheets workbooks
-
----
-
-## 1. Executive summary
-
-ScriptFlow is being developed as a single access point for the scripting team's operational reporting.
-
-Today, reporting information can be spread across separate Google Sheets and forms. ScriptFlow brings those entry points into one application so employees can sign in once, select the relevant report from a shared navigation area, and work with the records in the spreadsheet that already owns that information.
-
-**The key principle is centralised access, not centralised data.** Each registered form continues to use its original Google spreadsheet as its source of truth. ScriptFlow does not merge all departmental spreadsheets into a new database or replace the existing workbooks.
-
-### Business value
-
-| Value | What ScriptFlow provides |
-|---|---|
-| One reporting entry point | A shared workspace for KPI Weekly and registered operational forms. |
-| Less tool switching | Employees can select available forms from the same application navigation. |
-| Preserve existing workbooks | Each form continues to read and write to its designated Google spreadsheet. |
-| Clear responsibility | Role-based permissions distinguish standard users, team leaders and administrators. |
-| Consistent data entry | Forms are generated from the source worksheet's column headers. |
-| Controlled administration | Only administrators can register, update or deactivate forms. |
-| Incremental rollout | Additional spreadsheets can be connected without moving their existing data into a new system. |
-
-### Current delivery
-
-The application currently supports KPI Weekly reporting and a central Forms Workspace for registering additional Google Sheets worksheets. Registered forms appear in the main Reporting navigation and open within the shared workspace.
+- **Production application:** https://scriptflow-bice.vercel.app/
+- **GitHub repository:** https://github.com/anesta-code/scriptflow
+- **Frontend hosting:** Vercel
+- **Frontend:** React + Vite
+- **Backend:** Vercel serverless API routes + Google Apps Script
+- **Data storage:** Google Sheets
+- **Application database:** None. The active architecture does not use Supabase.
 
 ---
 
-## 2. What employees can do
+## 1. Project principles
 
-### KPI Weekly
+1. **One application, existing spreadsheets preserved.** ScriptFlow is a central interface; it does not replace the team's source workbooks.
+2. **Google Sheets remains the source of truth.** KPI Weekly data stays in its existing spreadsheet. Each additional registered form continues to use its own original spreadsheet and worksheet.
+3. **Security is enforced server-side.** Frontend visibility is not a substitute for Vercel and Apps Script permission checks.
+4. **Make changes incrementally.** Use feature branches, Vercel Preview deployments and pull requests. Do not make experimental changes directly on the main branch.
+5. **Protect production configuration.** HMAC validation, session signing, Apps Script deployment URLs and Script Properties are security-critical.
 
-- Sign in with an authorised Bilendi Google Workspace account.
-- View KPI Weekly records from the existing spreadsheet.
-- Search records by project name, project number, SPM project number, client, tester or project manager.
-- Create new KPI records and edit existing records.
-- Delete KPI records when the user's role allows it.
-- Refresh the displayed records.
-- Export the KPI records to an Excel workbook.
-- Calculate total estimated hours from the relevant time fields in the entry form.
+## 2. Current application features
 
-The KPI form maps to the existing KPI Weekly worksheet columns. ScriptFlow uses a hidden `__ScriptFlow_ID` column to identify records reliably when updating or deleting them.
+### KPI Weekly / KPI Migration
 
-### Additional reporting forms
+- View, search, create and edit KPI Weekly records.
+- Search by project details, including project number, SPM project number, project name and client.
+- Delete records when the user's role allows it.
+- Export KPI records to Excel.
+- Assign projects to a scripter using the SW field.
+- Scripters can access their assigned-project view.
+- A hidden permanent ScriptFlow ID identifies records when updating or deleting.
+- Calculate estimated hours in the KPI form and calculate Hours Commissioned from Price Scripting according to the current form logic.
+- Search KPI Migration projects from dynamic forms and map selected project values into the destination form. Supported mappings include Project Number, SPM Project Number, Project Name, Scripter (SW), Complexity, Client, PM and Tester.
 
-Administrators can register another Google Sheets worksheet by providing:
+### Daily Reporting
 
-- A form name.
-- The Google Sheets spreadsheet URL.
-- The worksheet tab name.
-- The row containing the column headers.
+Daily Reporting is available to scripters, team leads and admins.
 
-ScriptFlow reads the worksheet headers and uses them to build the form fields. The registered form is then made available in the Reporting navigation. Employees can open it, view its records, create new records and edit existing ones. Deletion is restricted to team leaders and administrators.
+- Displays team workload by scripter.
+- Groups scripter columns under their configured cluster headings.
+- Displays an Unassigned Cluster group when a scripter is not assigned to a configured cluster.
+- Groups projects by status and complexity.
+- Default active workload is Pending and In-progress.
+- Users can show all statuses and toggle individual status visibility.
+- Clicking a count opens the matching project list.
+- Manager filters include scripter, status and complexity, plus project/client search.
+- The Date Sent to QA, From and To date filters were removed from the Daily workload view.
 
-Each registered form points to its own spreadsheet and worksheet. ScriptFlow does not copy the worksheet into a shared master workbook.
+### Weekly Reporting
 
-### Forms Workspace (administrators)
+Weekly Reporting is available to team leads and admins.
 
-The Forms Workspace is restricted to administrators. It supports:
+- Shows new project assignments grouped by cluster and scripter for the selected week.
+- Uses the assignment event timestamp, not project creation date.
+- Counts new assignments in the weekly total.
+- Shows reassignments and unassignments separately; these do not increase the new-assignment total.
+- Displays the assignment events behind the weekly figures.
 
-- Registering a spreadsheet worksheet as a ScriptFlow form.
-- Updating a form's name or source worksheet configuration.
-- Deactivating a form so it is no longer shown as an active form in ScriptFlow.
+Assignment history begins when the feature is deployed. Earlier assignment events are not reconstructed automatically because previous assignment timestamps are not available in the KPI sheet. Weekly totals therefore reflect recorded events from the feature's activation onward.
 
-Deactivating a form removes its active registration from the application. **It does not delete the original Google spreadsheet, worksheet or its records.** The registration is retained as inactive configuration rather than deleting the source data.
+### Reporting Configuration
+
+Reporting Configuration is available to team leads and admins.
+
+- Manage cluster names and membership.
+- Designate a cluster lead independently from the person's ScriptFlow account role.
+- Configure complexity labels and ranges.
+- Configure status visibility and active-workload grouping.
+- Save shared configuration centrally in the Reporting Config worksheet.
+- Keep a history of configuration changes in Reporting Config History.
+
+Cluster membership is separate from project SW assignment. Changing a person's cluster does not automatically reassign their projects.
+
+### Assignment history and notifications
+
+- Assignment History records new assignments, reassignments and unassignments.
+- Events include project references, previous/new scripter, the person who made the change and the timestamp.
+- In-app notifications inform the relevant scripter(s) when a project is assigned, reassigned or unassigned.
+- Users can view notifications, see unread counts and mark notifications as read.
+- Notification records are stored in the Notifications worksheet.
+
+### Additional Google Sheets forms
+
+Admins can register an existing Google Sheets worksheet as a ScriptFlow form. ScriptFlow reads the worksheet headers to create a dynamic form.
+
+- Forms can be added, updated and deactivated by admins.
+- Employees can view, create and edit records in active forms.
+- Team leads and admins can delete form records.
+- Optional KPI project mappings can populate destination fields from a selected KPI Migration project.
+- Each form continues to read and write to its original spreadsheet.
+- Deactivating a form removes its active ScriptFlow registration only. It does not delete the spreadsheet, worksheet or records.
 
 ---
 
-## 3. User roles and permissions
+## 3. Roles and permissions
 
-Permissions are enforced by the application backend, not only by hiding buttons in the interface.
+A team member can have more than one ScriptFlow role. The backend supports a roles array and retains a primary role value for compatibility. Primary-role precedence is Admin → Team Lead → Scripter. Authorization checks recognise all roles assigned to the user.
 
-| Capability | Scripter | Team Leader | Admin |
+| Capability | Scripter | Team Lead | Admin |
 |---|:---:|:---:|:---:|
-| Sign in and view reporting records | ✓ | ✓ | ✓ |
-| Create records | ✓ | ✓ | ✓ |
-| Edit records | ✓ | ✓ | ✓ |
-| Delete records | — | ✓ | ✓ |
-| Add a form to ScriptFlow | — | — | ✓ |
-| Update a registered form | — | — | ✓ |
-| Deactivate a form in ScriptFlow | — | — | ✓ |
-| Access Forms Workspace | — | — | ✓ |
+| Sign in and view KPI records | Yes | Yes | Yes |
+| Create and edit KPI records | Yes | Yes | Yes |
+| Delete KPI records | No | Yes | Yes |
+| View Daily Reporting | Yes | Yes | Yes |
+| View Weekly Reporting | No | Yes | Yes |
+| Manage Reporting Configuration | No | Yes | Yes |
+| View assignment history in Weekly Reporting | No | Yes | Yes |
+| View and use registered forms | Yes | Yes | Yes |
+| Create and edit form records | Yes | Yes | Yes |
+| Delete form records | No | Yes | Yes |
+| Add, update or deactivate form registrations | No | No | Yes |
+| Access Forms Workspace administration | No | No | Yes |
 
-New or unassigned Bilendi users receive the standard **Scripter** role by default. Elevated roles should be assigned only to approved employees through the Apps Script role configuration.
+A person who has both Admin/Team Lead and Scripter roles can use the corresponding management capabilities and can also be selected as a project assignee. Cluster lead designation is separate from ScriptFlow roles.
+
+The team directory is maintained in the Apps Script project. The default role for an email address not found in the directory is Scripter. Do not add or change employee roles without confirming the intended access.
 
 ---
 
-## 4. How the application works
+## 4. Architecture
 
-### Architecture at a glance
-
-```text
-Bilendi employee
+~~~text
+Employee browser
       |
-      | Opens ScriptFlow and signs in
       v
-React web application
-Hosted on Vercel
+React + Vite frontend (client/src)
       |
-      | Same-origin requests
+      | same-origin requests
       v
-Vercel serverless API
+Vercel serverless API (client/api)
       |
-      | HMAC-signed, time-limited requests
+      | signed HMAC request
       v
-Google Apps Script backend
+Google Apps Script (google-apps-script/Code.gs)
       |
-      +----------------------+----------------------+
-      |                      |                      |
-      v                      v                      v
-KPI Weekly sheet      Registered form A     Registered form B
-(existing workbook)   (original workbook)    (original workbook)
-```
+      +------ KPI Weekly spreadsheet
+      +------ Notifications worksheet
+      +------ Assignment History worksheet
+      +------ Reporting Config / Config History
+      +------ Each registered form's original spreadsheet
+~~~
 
-### Main components
+### Main responsibilities
 
-| Component | Responsibility |
+| Layer | Responsibility |
 |---|---|
-| React frontend | The user interface, navigation, reporting pages, forms and record lists. |
-| Vercel | Hosts the frontend and runs the serverless API endpoints. |
-| Google Apps Script | Handles sign-in integration, permission checks and Google Sheets operations. |
-| Google Sheets | Stores KPI Weekly records and the records for each registered form. |
-| Apps Script Properties | Holds application configuration, role overrides, secrets and the form registry. |
+| React + Vite | Application layout, navigation, KPI forms, reporting dashboards, dynamic forms and user interactions. |
+| Vercel | Hosts the frontend and server-side API endpoints. Validates the session and request permissions before forwarding operations. |
+| Google Apps Script | Handles Workspace sign-in assertions, HMAC verification, role checks and spreadsheet reads/writes. |
+| Google Sheets | Stores KPI Weekly records, notification/history/configuration worksheets and records for registered forms. |
+| Apps Script Properties | Stores secrets and configuration such as role overrides and the registered-form registry. |
 
-The same Google Apps Script project is deployed as two web apps because authentication and API access need different access settings:
+There is no separate ScriptFlow database. Legacy database and Supabase folders may remain in the repository from an earlier design; they are not part of the active data flow.
 
-1. **Authentication deployment:** restricted to users in the Bilendi Google Workspace domain.
-2. **API deployment:** callable by the Vercel server, with every request protected by request signing and validation.
+### Two deployments of one Apps Script project
 
-The API deployment being reachable over the web does not mean its operations are unauthenticated. Requests are checked using a shared HMAC secret, timestamp and unique nonce to reject invalid, expired or replayed requests. Employee sessions and permissions are also validated before protected operations are performed.
+The same Apps Script project is deployed twice:
 
-### Data and system of record
+1. **AUTH deployment:** Execute as Me; access restricted to users within bilendi.com. Its URL is configured in Vercel as GOOGLE_WORKSPACE_AUTH_URL.
+2. **API deployment:** Execute as Me; access Anyone. Its URL is configured in Vercel as SCRIPT_FLOW_API_URL. Every POST request must pass HMAC validation.
 
-ScriptFlow has **no separate application database** and does not depend on Supabase.
-
-- KPI Weekly records remain in the existing KPI Weekly spreadsheet.
-- Each additional form's records remain in that form's original spreadsheet and worksheet.
-- The form registry is stored in Google Apps Script Properties. It contains the configuration needed to locate and describe each registered worksheet; it is not a copy of the worksheet's reporting records.
-- A hidden `__ScriptFlow_ID` column is used in each managed worksheet to keep a stable identifier for records.
-
-The Google account that owns/runs the Apps Script deployment must have access to every spreadsheet registered in ScriptFlow. This access needs to be arranged when a new source spreadsheet is connected.
+Both deployments use the same project code and Script Properties. When a backend code change requires deployment, update the existing deployments to a new version; do not create new deployment URLs.
 
 ---
 
-## 5. Security and access controls
+## 5. Security and configuration
 
-ScriptFlow uses several layers of protection:
+### Vercel environment variable names
 
-- **Company sign-in:** the authentication flow requires a Bilendi Google Workspace identity.
-- **Signed employee assertion:** the Apps Script authentication flow issues a short-lived signed assertion which the Vercel backend validates before establishing a session.
-- **Protected session:** the frontend uses a server-managed session cookie; sensitive signing secrets are kept in server-side environment variables and Apps Script Properties.
-- **Signed backend requests:** Vercel signs requests sent to Apps Script. Apps Script validates the signature, timestamp and nonce.
-- **Backend permission checks:** record and form operations check the current user's role before execution.
-- **Same-origin API checks:** the Vercel API routes reject cross-origin requests.
-- **Spreadsheet access:** Apps Script must be authorised to open each source workbook.
+- GOOGLE_WORKSPACE_AUTH_URL
+- SCRIPT_FLOW_API_URL
+- SCRIPT_FLOW_API_SECRET
+- SCRIPT_FLOW_SESSION_SECRET
 
-Authentication and request-signing checks are essential parts of the design. They should not be removed or bypassed as part of routine UI changes.
+### Apps Script Script Property names
 
----
+- AUTH_TOKEN_SECRET
+- SCRIPT_FLOW_API_SECRET
+- VERCEL_CALLBACK_URL
+- KPI_SPREADSHEET_ID (optional override for the KPI spreadsheet)
+- SCRIPT_FLOW_USER_ROLES (optional JSON role overrides)
+- SCRIPT_FLOW_FORMS and its chunk properties (registered-form configuration)
 
-## 6. Typical workflows
+**Never put the values of secrets, tokens or private credentials in GitHub.** This README intentionally documents variable names only.
 
-### Employee workflow
+Security requirements:
 
-1. Open the ScriptFlow web application.
-2. Sign in with a Bilendi Google Workspace account.
-3. Select **KPI Migration** or one of the available forms under **Reporting**.
-4. Search or refresh the records if needed.
-5. Create a new record or edit an existing one.
-6. Save the record. ScriptFlow writes the change to the corresponding source Google Sheet.
-
-### Administrator workflow: connect another reporting sheet
-
-1. Open **Forms Workspace**.
-2. Choose **Add form**.
-3. Enter the form name, spreadsheet URL, worksheet tab and header row.
-4. Save the configuration. ScriptFlow checks that it can access the spreadsheet and read the worksheet headers.
-5. The new form becomes available under **Reporting**.
-6. Employees can open the form and work with its records in the shared application.
-
-Before registering a workbook, ensure that the Apps Script owner has the required access to it and that the worksheet has a valid, unique header row.
+- Keep the HMAC signature, timestamp, nonce and replay checks.
+- Keep signed employee assertions and session validation.
+- Keep role checks in both the Vercel API and Apps Script backend.
+- Do not expose Apps Script secrets to browser code.
+- Do not change deployment access scopes, execution identity, URLs or Script Properties without an explicit operational decision.
+- Do not bypass the Vercel API by connecting the browser directly to Google Sheets.
 
 ---
 
-## 7. Current scope and boundaries
+## 6. Google Sheets worksheets and metadata
 
-### Included
+Depending on which features have been used, the KPI spreadsheet may contain:
 
-- Bilendi Google Workspace sign-in.
-- Role-based access for scripters, team leaders and administrators.
-- KPI Weekly record listing, search, create, edit, delete and Excel export.
-- Registration of additional Google Sheets worksheets.
-- Dynamic forms based on worksheet headers.
-- Record listing, create, edit and role-controlled deletion for registered forms.
-- A shared Reporting navigation and administrator-only Forms Workspace.
+| Worksheet / column | Purpose |
+|---|---|
+| KPI weekly | Main KPI project records. |
+| Notifications | In-app notifications, including recipient, message, project reference, created time and read time. Created automatically when needed. |
+| Assignment History | New assignment, reassignment and unassignment events. Created automatically when needed. |
+| Reporting Config | Shared Reporting configuration: statuses, complexity ranges, clusters, visibility and weekly rules. |
+| Reporting Config History | Previous/new configuration snapshots, editor and timestamp. |
 
-### Not currently part of the application
+Managed sheets use hidden metadata columns where required:
 
-- Replacing Google Sheets with a central database.
-- Consolidating all reporting workbooks into one spreadsheet.
-- Automatic migration of historical data between workbooks.
-- Project or ticket management modules.
-- Automated survey scripting, Forsta/Decipher execution or QA workflows.
-- A full business intelligence or analytics platform.
-- Automated approval workflows.
+- __ScriptFlow_ID: stable record identifier.
+- __ScriptFlow_Project_ID: selected KPI project reference in mapped dynamic forms.
+- __ScriptFlow_Revision: revision token used by dynamic forms to detect conflicting edits.
 
-These boundaries help keep the current solution focused on centralising access and simplifying reporting while preserving the team's existing spreadsheet processes.
+Do not rename or remove these metadata columns without updating and testing the corresponding Apps Script logic.
 
 ---
 
-## 8. Deployment and technical maintenance
-
-### Production
-
-- Frontend and API hosting: Vercel.
-- Connected source repository: GitHub, `anesta-code/scriptflow`.
-- Production application: [https://scriptflow-bice.vercel.app/](https://scriptflow-bice.vercel.app/).
-- Google Sheets operations: Google Apps Script Web App deployments.
-
-The application has two Apps Script deployment URLs configured in Vercel as server-side environment variables. Signing secrets are configured separately in Vercel and Apps Script Properties. **Do not commit deployment secrets, session secrets, API secrets or private spreadsheet credentials to the repository.**
-
-### Local development
+## 7. Local development
 
 Requirements:
+
 - Node.js and npm.
-- Access to the GitHub repository.
-- Appropriate Vercel environment variables for testing the authenticated API flow.
+- Repository access.
+- Appropriate local/Vercel environment configuration for authenticated API testing.
 - Access to the Apps Script project and source spreadsheets for backend testing.
 
-Run the frontend from the `client` directory:
+From the repository root:
 
-```powershell
+~~~powershell
 cd client
 npm install
 npm run dev
-```
+~~~
 
 Create a production build:
 
-```powershell
+~~~powershell
 npm run build
-```
+~~~
 
-A local Vite development server is useful for frontend work, but authenticated API operations require the configured Vercel serverless routes and backend environment.
-
-### Safe change and release process
-
-1. Create a feature branch; do not experiment directly on the production branch.
-2. Keep authentication, signing, role enforcement and spreadsheet mapping unchanged unless a change is specifically required and reviewed.
-3. Test the relevant workflow using a Vercel Preview deployment.
-4. Verify that writes reach the correct source spreadsheet and that existing records are updated rather than duplicated.
-5. Test permissions with the relevant user roles.
-6. Merge only after the preview checks pass.
-7. Confirm the production deployment after merging.
+A local Vite server can render the frontend, but authenticated API calls need the configured server-side routes and environment. Do not put server secrets in VITE_ variables or browser code.
 
 ---
 
-## 9. Repository structure
+## 8. Safe development and release process
 
-```text
-scriptflow/
-├── client/
-│   ├── api/
-│   │   ├── _lib/                 # Shared API security and request helpers
-│   │   ├── auth/                 # Authentication endpoints
-│   │   ├── forms.js              # Registered-form API operations
-│   │   └── kpi-weekly.js         # KPI Weekly API operations
-│   ├── src/
-│   │   ├── App.jsx               # Main application entry
-│   │   ├── AuthGate.jsx          # Sign-in/session gate
-│   │   ├── KPIWeekly.jsx         # Main reporting workspace
-│   │   ├── DynamicFormPage.jsx   # Registered form record interface
-│   │   └── FormsWorkspace.jsx    # Admin form configuration
-│   ├── package.json
-│   └── vercel.json
-├── google-apps-script/
-│   ├── Code.gs                   # Unified Google Apps Script backend
-│   └── auth/
-│       └── Index.html            # Google sign-in page
-├── README.md
-└── CHANGELOG.md
-```
+1. Pull the latest main branch.
+2. Create a feature branch; do not commit directly to main.
+3. Identify the correct owning file using CODEBASE_GUIDE.md.
+4. Trace data changes through React → Vercel API → Apps Script → Google Sheets.
+5. Keep changes focused and avoid unrelated refactoring.
+6. Test the affected feature and build with npm run build.
+7. Open a pull request and verify the Vercel Preview deployment.
+8. Test the relevant roles and confirm writes affect only the intended spreadsheet.
+9. Merge only after review and Preview verification.
+10. If google-apps-script/Code.gs changed, update both existing Apps Script deployments to a new version when the change affects their behaviour. Preserve their URLs and settings.
+11. Verify production after merge/deployment.
+
+Do not update Apps Script production deployments merely because a Code.gs file changed in a feature branch. Wait until the change is approved and merged, then follow the deployment instructions for that change.
 
 ---
 
-## 10. Project summary for management
+## 9. Current scope and boundaries
 
-ScriptFlow provides Bilendi's scripting team with a single, secure reporting workspace while retaining the existing Google Sheets files as the source of truth. Employees access KPI Weekly and other registered reporting forms from one interface. Administrators can connect additional worksheets without migrating their data, and role-based controls govern who can create, edit, delete or administer forms.
+ScriptFlow currently focuses on KPI Weekly, team workload reporting, assignment history/notifications and dynamic forms connected to existing Google Sheets.
 
-The approach is deliberately incremental: it improves the employee experience and standardises access without requiring a new database, a large data migration or a replacement of the team's established Google Sheets workflows.
+It is not intended to replace Google Sheets with a database, migrate all historical data, or provide automated Forsta/Decipher scripting and QA execution. Future performance work should first measure the actual frontend/API/Apps Script bottleneck before changing the architecture.
 
-**In short: one application for reporting access, existing spreadsheets preserved, and permissions managed centrally.**
+---
+
+## 10. Project reference
+
+- Start with CODEBASE_GUIDE.md to locate the implementation.
+- Check CHANGELOG.md for historical changes, but verify current code before relying on old notes.
+- Review recent pull requests for the reason behind larger changes.
+- Treat google-apps-script/Code.gs, client/api/_lib/security.js and client/api/auth/ as security-sensitive.
